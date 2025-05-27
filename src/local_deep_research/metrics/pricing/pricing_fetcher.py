@@ -5,12 +5,10 @@ Fetches real-time pricing data from various LLM providers.
 Supports multiple providers and fallback to static pricing.
 """
 
-import logging
 from typing import Any, Dict, Optional
 
 import aiohttp
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 class PricingFetcher:

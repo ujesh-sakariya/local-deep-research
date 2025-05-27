@@ -54,11 +54,14 @@ logs/
 
 # Database
 research_history.db
+data/ldr.db
+*.db
 
 # Data
 *.pdf
 .cache
 *.jsonl
+data/cache/pricing/pricing_cache.json
 
 # Tools
 python-db/
@@ -130,3 +133,5 @@ charts_*.png
 research_*.png
 star_reviews_*.png
 web*.png
+tests/screenshots/
+screenshots/
