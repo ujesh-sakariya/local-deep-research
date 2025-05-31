@@ -1,11 +1,73 @@
-# Python
+# WHITELIST APPROACH - Only allow specific file types
+# Deny everything by default
+*
+
+# Allow directories (needed for git to traverse)
+!*/
+
+# Allow specific source code files
+!*.py
+!*.js
+!*.html
+!*.css
+!*.json
+!*.md
+!*.yml
+!*.yaml
+!*.sh
+!*.cfg
+!*.ipynb
+!*.template
+
+# Allow specific project files
+!LICENSE
+!README
+!README.md
+!Dockerfile
+!pyproject.toml
+!pdm.lock
+!package.json
+!.gitignore
+!.gitkeep
+!MANIFEST.in
+!.pre-commit-config.yaml
+!.isort.cfg
+
+# Block all other dot files/folders
+.*
+.*/
+!.github/
+!.github/**
+
+# Allow installer files only in installers directory
+!installers/**/*.bat
+!installers/**/*.ps1
+!installers/**/*.iss
+!installers/**/*.ico
+
+# Block specific problematic directories even if they contain allowed files
+src/data/
+src/research_outputs/
+research_outputs/
+data/
+logs/
+cache/
+temp/
+tmp/
+
+# Block result directories from examples
+examples/optimization/examples/optimization/results/
+examples/benchmarks/examples/benchmarks/results/
+examples/*/results/
+**/results/*/
+
+# Still block Python cache and build artifacts even if they match patterns above
 __pycache__/
 **/__pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-.python-version
 build/
 develop-eggs/
 dist/
@@ -22,7 +84,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Block virtual environments
 .venv/
 venv/
 ENV/
@@ -30,7 +92,7 @@ env/
 .env
 .pdm*
 
-# IDE
+# Block IDE files
 .idea/
 .vscode/
 *.swp
