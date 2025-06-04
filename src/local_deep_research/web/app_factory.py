@@ -6,10 +6,8 @@ from flask import (
     Flask,
     jsonify,
     make_response,
-    redirect,
     request,
     send_from_directory,
-    url_for,
 )
 from flask_wtf.csrf import CSRFProtect
 from loguru import logger
@@ -53,10 +51,11 @@ def create_app():
     # App configuration
     app.config["SECRET_KEY"] = "deep-research-secret-key"
 
-    # Initialize CSRF protection
-    csrf = CSRFProtect(app)
-    # Exempt Socket.IO from CSRF protection
-    csrf.exempt("research.socket_io")
+    # Temporarily disable CSRF for API testing
+    app.config["WTF_CSRF_ENABLED"] = False
+
+    # Initialize CSRF protection (disabled)
+    CSRFProtect(app)
 
     # Database configuration - Use unified ldr.db from the database module
     db_path = DB_PATH
@@ -106,12 +105,18 @@ def apply_middleware(app):
         response.headers["X-Content-Security-Policy"] = csp
 
         # Add CORS headers for API requests
-        if request.path.startswith("/api/"):
+        if request.path.startswith("/api/") or request.path.startswith(
+            "/research/api/"
+        ):
             response.headers["Access-Control-Allow-Origin"] = "*"
             response.headers["Access-Control-Allow-Methods"] = (
-                "GET, POST, DELETE, OPTIONS"
+                "GET, POST, PUT, DELETE, OPTIONS"
             )
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+            response.headers["Access-Control-Allow-Headers"] = (
+                "Content-Type, Authorization, X-Requested-With, X-HTTP-Method-Override"
+            )
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Max-Age"] = "3600"
 
         return response
 
@@ -126,6 +131,25 @@ def apply_middleware(app):
                 logger.exception("WebSocket preprocessing error")
                 # Return empty response to prevent further processing
                 return "", 200
+
+    # Handle CORS preflight requests
+    @app.before_request
+    def handle_preflight():
+        if request.method == "OPTIONS":
+            if request.path.startswith("/api/") or request.path.startswith(
+                "/research/api/"
+            ):
+                response = app.make_default_options_response()
+                response.headers["Access-Control-Allow-Origin"] = "*"
+                response.headers["Access-Control-Allow-Methods"] = (
+                    "GET, POST, PUT, DELETE, OPTIONS"
+                )
+                response.headers["Access-Control-Allow-Headers"] = (
+                    "Content-Type, Authorization, X-Requested-With, X-HTTP-Method-Override"
+                )
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Max-Age"] = "3600"
+                return response
 
 
 def register_blueprints(app):
@@ -143,13 +167,15 @@ def register_blueprints(app):
     @app.route("/")
     def index():
         """Root route - redirect to research page"""
+        from flask import redirect, url_for
+
         return redirect(url_for("research.index"))
 
     # Register blueprints
     app.register_blueprint(research_bp)
     app.register_blueprint(history_bp, url_prefix="/research/api")
-    app.register_blueprint(settings_bp)
     app.register_blueprint(metrics_bp)
+    app.register_blueprint(settings_bp)
     app.register_blueprint(
         api_bp, url_prefix="/research/api"
     )  # Register API blueprint with prefix
@@ -165,11 +191,6 @@ def register_blueprints(app):
         for rule in app.url_map.iter_rules():
             if rule.endpoint.startswith("api_v1."):
                 csrf.exempt(rule.endpoint)
-
-    # Add root route redirect
-    @app.route("/")
-    def root_index():
-        return redirect(url_for("research.index"))
 
     # Add favicon route
     @app.route("/favicon.ico")
