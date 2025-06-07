@@ -92,10 +92,14 @@ def run_benchmark(
         # Load the examples
         dataset = dataset_instance.load()
 
-        logger.info(f"Loaded {len(dataset)} examples using dataset class {type(dataset_instance).__name__}")
+        logger.info(
+            f"Loaded {len(dataset)} examples using dataset class {type(dataset_instance).__name__}"
+        )
     except Exception as e:
         # Fallback to legacy function if there's any issue
-        logger.warning(f"Error using dataset class: {e}. Falling back to legacy function.")
+        logger.warning(
+            f"Error using dataset class: {e}. Falling back to legacy function."
+        )
         dataset = load_dataset(
             dataset_type=dataset_type,
             dataset_path=dataset_path,
@@ -105,11 +109,15 @@ def run_benchmark(
 
     # Set up output files
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    results_file = os.path.join(output_dir, f"{dataset_type}_{timestamp}_results.jsonl")
+    results_file = os.path.join(
+        output_dir, f"{dataset_type}_{timestamp}_results.jsonl"
+    )
     evaluation_file = os.path.join(
         output_dir, f"{dataset_type}_{timestamp}_evaluation.jsonl"
     )
-    report_file = os.path.join(output_dir, f"{dataset_type}_{timestamp}_report.md")
+    report_file = os.path.join(
+        output_dir, f"{dataset_type}_{timestamp}_report.md"
+    )
 
     # Make sure output files don't exist
     for file in [results_file, evaluation_file, report_file]:
@@ -135,11 +143,16 @@ def run_benchmark(
 
     for i, example in enumerate(dataset):
         # Extract question and answer in a way that uses the dataset class when available
-        if 'dataset_instance' in locals() and isinstance(dataset_instance, DatasetRegistry.get_dataset_class(dataset_type.lower())):
+        if "dataset_instance" in locals() and isinstance(
+            dataset_instance,
+            DatasetRegistry.get_dataset_class(dataset_type.lower()),
+        ):
             # Use the dataset class methods to extract question and answer
             question = dataset_instance.get_question(example)
             correct_answer = dataset_instance.get_answer(example)
-            logger.debug(f"Using dataset class methods to extract question and answer")
+            logger.debug(
+                "Using dataset class methods to extract question and answer"
+            )
         else:
             # Fallback to the legacy approach
             if dataset_type.lower() == "simpleqa":
@@ -163,7 +176,9 @@ def run_benchmark(
                     "current": i + 1,
                     "total": total_examples,
                     "question": (
-                        question[:50] + "..." if len(question) > 50 else question
+                        question[:50] + "..."
+                        if len(question) > 50
+                        else question
                     ),
                 },
             )
@@ -181,7 +196,9 @@ def run_benchmark(
             search_result = quick_summary(
                 query=formatted_query,
                 iterations=search_config.get("iterations", 3),
-                questions_per_iteration=search_config.get("questions_per_iteration", 3),
+                questions_per_iteration=search_config.get(
+                    "questions_per_iteration", 3
+                ),
                 search_tool=search_config.get("search_tool", "searxng"),
             )
 
@@ -278,7 +295,9 @@ def run_benchmark(
 
             logger.info("Running human evaluation...")
             evaluation_results = evaluate(
-                results_file=results_file, output_file=evaluation_file, interactive=True
+                results_file=results_file,
+                output_file=evaluation_file,
+                interactive=True,
             )
         else:
             logger.info("Running automated evaluation...")
@@ -349,7 +368,9 @@ def run_benchmark(
 
         # Generate report
         if progress_callback:
-            progress_callback("Generating report", 95, {"status": "generating_report"})
+            progress_callback(
+                "Generating report", 95, {"status": "generating_report"}
+            )
 
         dataset_name = dataset_type.capitalize()
         report_path = generate_report(
@@ -366,7 +387,9 @@ def run_benchmark(
                     "questions_per_iteration", 3
                 ),
                 "Search tool": search_config.get("search_tool", "searxng"),
-                "Evaluation method": "Human" if human_evaluation else "Automated",
+                "Evaluation method": "Human"
+                if human_evaluation
+                else "Automated",
             },
         )
 
@@ -375,7 +398,11 @@ def run_benchmark(
             progress_callback(
                 "Benchmark complete",
                 100,
-                {"status": "complete", "metrics": metrics, "report_path": report_path},
+                {
+                    "status": "complete",
+                    "metrics": metrics,
+                    "report_path": report_path,
+                },
             )
 
         return {
@@ -417,10 +444,14 @@ def run_simpleqa_benchmark(num_examples: int = 100, **kwargs) -> Dict[str, Any]:
     Returns:
         Dictionary with benchmark results
     """
-    return run_benchmark(dataset_type="simpleqa", num_examples=num_examples, **kwargs)
+    return run_benchmark(
+        dataset_type="simpleqa", num_examples=num_examples, **kwargs
+    )
 
 
-def run_browsecomp_benchmark(num_examples: int = 100, **kwargs) -> Dict[str, Any]:
+def run_browsecomp_benchmark(
+    num_examples: int = 100, **kwargs
+) -> Dict[str, Any]:
     """
     Run BrowseComp benchmark with default settings.
 
@@ -431,4 +462,6 @@ def run_browsecomp_benchmark(num_examples: int = 100, **kwargs) -> Dict[str, Any
     Returns:
         Dictionary with benchmark results
     """
-    return run_benchmark(dataset_type="browsecomp", num_examples=num_examples, **kwargs)
+    return run_benchmark(
+        dataset_type="browsecomp", num_examples=num_examples, **kwargs
+    )

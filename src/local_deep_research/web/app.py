@@ -5,6 +5,7 @@ from loguru import logger
 
 from ..setup_data_dir import setup_data_dir
 from ..utilities.db_utils import get_db_setting
+from ..utilities.log_utils import config_logger
 from .app_factory import create_app
 from .models.database import (
     DB_PATH,
@@ -14,6 +15,9 @@ from .models.database import (
 
 # Ensure data directory exists
 setup_data_dir()
+
+# Configure logging with milestone level
+config_logger("ldr_web")
 
 # Run schema upgrades if database exists
 if os.path.exists(DB_PATH):
@@ -32,9 +36,9 @@ def check_migration_needed():
     """Check if database migration is needed, based on presence of legacy files and absence of new DB"""
     if not os.path.exists(DB_PATH):
         # The new database doesn't exist, check if legacy databases exist
-        legacy_files_exist = os.path.exists(LEGACY_DEEP_RESEARCH_DB) or os.path.exists(
-            LEGACY_RESEARCH_HISTORY_DB
-        )
+        legacy_files_exist = os.path.exists(
+            LEGACY_DEEP_RESEARCH_DB
+        ) or os.path.exists(LEGACY_RESEARCH_HISTORY_DB)
 
         if legacy_files_exist:
             logger.info(
@@ -45,16 +49,15 @@ def check_migration_needed():
     return False
 
 
-# Create the Flask app and SocketIO instance
-app, socketio = create_app()
-
-
-@logger.catch()
+@logger.catch
 def main():
     """
     Entry point for the web application when run as a command.
     This function is needed for the package's entry point to work properly.
     """
+    # Create the Flask app and SocketIO instance
+    app, socketio = create_app()
+
     # Check if migration is needed
     if check_migration_needed():
         logger.info(
@@ -93,15 +96,8 @@ def main():
     host = get_db_setting("web.host", "0.0.0.0")
     debug = get_db_setting("web.debug", True)
 
-    logger.info(f"Starting web server on {host}:{port} (debug: {debug})")
-    socketio.run(
-        app,
-        debug=debug,
-        host=host,
-        port=port,
-        allow_unsafe_werkzeug=True,
-        use_reloader=False,
-    )
+    with app.app_context():
+        socketio.run(host, port, debug=debug)
 
 
 if __name__ == "__main__":

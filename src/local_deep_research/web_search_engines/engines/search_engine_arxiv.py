@@ -148,6 +148,7 @@ class ArXivSearchEngine(BaseSearchEngine):
                         else None
                     ),
                     "journal_ref": paper.journal_ref,
+                    "source": "arXiv",
                 }
 
                 previews.append(preview)
@@ -234,8 +235,12 @@ class ArXivSearchEngine(BaseSearchEngine):
                 ):
                     try:
                         # Download the paper
-                        pdf_count += 1  # Increment counter before attempting download
-                        paper_path = paper.download_pdf(dirpath=self.download_dir)
+                        pdf_count += (
+                            1  # Increment counter before attempting download
+                        )
+                        paper_path = paper.download_pdf(
+                            dirpath=self.download_dir
+                        )
                         result["pdf_path"] = str(paper_path)
 
                         # Extract text from PDF
@@ -266,7 +271,9 @@ class ArXivSearchEngine(BaseSearchEngine):
                                     with pdfplumber.open(paper_path) as pdf:
                                         pdf_text = ""
                                         for page in pdf.pages:
-                                            pdf_text += page.extract_text() + "\n\n"
+                                            pdf_text += (
+                                                page.extract_text() + "\n\n"
+                                            )
 
                                         if (
                                             pdf_text.strip()
@@ -285,9 +292,13 @@ class ArXivSearchEngine(BaseSearchEngine):
                                     )
                         except Exception:
                             logger.exception("Error extracting text from PDF")
-                            logger.error("Using paper summary as content instead")
+                            logger.error(
+                                "Using paper summary as content instead"
+                            )
                     except Exception:
-                        logger.exception(f"Error downloading paper {paper.title}")
+                        logger.exception(
+                            f"Error downloading paper {paper.title}"
+                        )
                         result["pdf_path"] = None
                         pdf_count -= 1  # Decrement counter if download fails
                 elif (
@@ -400,7 +411,9 @@ class ArXivSearchEngine(BaseSearchEngine):
                 if self.include_full_text and self.download_dir:
                     try:
                         # Download the paper
-                        paper_path = paper.download_pdf(dirpath=self.download_dir)
+                        paper_path = paper.download_pdf(
+                            dirpath=self.download_dir
+                        )
                         result["pdf_path"] = str(paper_path)
                     except Exception:
                         logger.exception("Error downloading paper")

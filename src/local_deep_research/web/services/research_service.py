@@ -8,14 +8,96 @@ from loguru import logger
 
 from ...config.llm_config import get_llm
 from ...config.search_config import get_search
+from ...metrics.search_tracker import set_search_context
 from ...report_generator import IntegratedReportGenerator
 from ...search_system import AdvancedSearchSystem
+from ...utilities.log_utils import log_for_research
 from ...utilities.search_utilities import extract_links_from_search_results
-from ..models.database import add_log_to_db, calculate_duration, get_db_connection
-from .socket_service import emit_to_subscribers
+from ...utilities.db_utils import get_db_session
+from ...utilities.threading_utils import thread_context, thread_with_app_context
+from ..database.models import ResearchStrategy
+from ..models.database import calculate_duration, get_db_connection
+from .socket_service import SocketIOService
 
 # Output directory for research results
-OUTPUT_DIR = Path("research_outputs")
+_PROJECT_ROOT = Path(__file__).parents[4]
+OUTPUT_DIR = _PROJECT_ROOT / "research_outputs"
+
+
+def save_research_strategy(research_id, strategy_name):
+    """
+    Save the strategy used for a research to the database.
+
+    Args:
+        research_id: The ID of the research
+        strategy_name: The name of the strategy used
+    """
+    try:
+        logger.debug(
+            f"save_research_strategy called with research_id={research_id}, strategy_name={strategy_name}"
+        )
+        session = get_db_session()
+
+        try:
+            # Check if a strategy already exists for this research
+            existing_strategy = (
+                session.query(ResearchStrategy)
+                .filter_by(research_id=research_id)
+                .first()
+            )
+
+            if existing_strategy:
+                # Update existing strategy
+                existing_strategy.strategy_name = strategy_name
+                logger.debug(
+                    f"Updating existing strategy for research {research_id}"
+                )
+            else:
+                # Create new strategy record
+                new_strategy = ResearchStrategy(
+                    research_id=research_id, strategy_name=strategy_name
+                )
+                session.add(new_strategy)
+                logger.debug(
+                    f"Creating new strategy record for research {research_id}"
+                )
+
+            session.commit()
+            logger.info(
+                f"Saved strategy '{strategy_name}' for research {research_id}"
+            )
+        finally:
+            session.close()
+    except Exception:
+        logger.exception("Error saving research strategy")
+
+
+def get_research_strategy(research_id):
+    """
+    Get the strategy used for a research.
+
+    Args:
+        research_id: The ID of the research
+
+    Returns:
+        str: The strategy name or None if not found
+    """
+    try:
+        session = get_db_session()
+
+        try:
+            strategy = (
+                session.query(ResearchStrategy)
+                .filter_by(research_id=research_id)
+                .first()
+            )
+
+            return strategy.strategy_name if strategy else None
+        finally:
+            session.close()
+    except Exception:
+        logger.exception("Error getting research strategy")
+        return None
 
 
 def start_research_process(
@@ -42,10 +124,20 @@ def start_research_process(
     Returns:
         threading.Thread: The thread running the research
     """
+    # Pass the app context to the thread.
+    run_research_callback = thread_with_app_context(run_research_callback)
+
     # Start research process in a background thread
     thread = threading.Thread(
         target=run_research_callback,
-        args=(research_id, query, mode, active_research, termination_flags),
+        args=(
+            thread_context(),
+            research_id,
+            query,
+            mode,
+            active_research,
+            termination_flags,
+        ),
         kwargs=kwargs,
     )
     thread.daemon = True
@@ -55,13 +147,7 @@ def start_research_process(
         "thread": thread,
         "progress": 0,
         "status": "in_progress",
-        "log": [
-            {
-                "time": datetime.utcnow().isoformat(),
-                "message": "Research started",
-                "progress": 0,
-            }
-        ],
+        "log": [],
         "settings": kwargs,  # Store settings for reference
     }
 
@@ -87,6 +173,7 @@ def _generate_report_path(query: str) -> Path:
     )
 
 
+@log_for_research
 def run_research_process(
     research_id, query, mode, active_research, termination_flags, **kwargs
 ):
@@ -104,8 +191,12 @@ def run_research_process(
     try:
         # Check if this research has been terminated before we even start
         if research_id in termination_flags and termination_flags[research_id]:
-            logger.info(f"Research {research_id} was terminated before starting")
-            cleanup_research_resources(research_id, active_research, termination_flags)
+            logger.info(
+                f"Research {research_id} was terminated before starting"
+            )
+            cleanup_research_resources(
+                research_id, active_research, termination_flags
+            )
             return
 
         logger.info(
@@ -121,12 +212,22 @@ def run_research_process(
         time_period = kwargs.get("time_period")
         iterations = kwargs.get("iterations")
         questions_per_iteration = kwargs.get("questions_per_iteration")
+        strategy = kwargs.get(
+            "strategy", "source-based"
+        )  # Default to source-based
+
+        # Save the strategy to the database
+        logger.debug(
+            f"About to call save_research_strategy with research_id={research_id}, strategy={strategy}"
+        )
+        save_research_strategy(research_id, strategy)
+        logger.debug("save_research_strategy call completed")
 
         # Log all parameters for debugging
         logger.info(
             "Research parameters: provider=%s, model=%s, search_engine=%s, "
             "max_results=%s, time_period=%s, iterations=%s, "
-            "questions_per_iteration=%s, custom_endpoint=%s",
+            "questions_per_iteration=%s, custom_endpoint=%s, strategy=%s",
             model_provider,
             model,
             search_engine,
@@ -135,41 +236,86 @@ def run_research_process(
             iterations,
             questions_per_iteration,
             custom_endpoint,
+            strategy,
         )
 
         # Set up the AI Context Manager
         output_dir = OUTPUT_DIR / f"research_{research_id}"
         output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Create shared research context that can be updated during research
+        shared_research_context = {
+            "research_id": research_id,
+            "research_query": query,
+            "research_mode": mode,
+            "research_phase": "init",
+            "search_iteration": 0,
+            "search_engines_planned": None,
+            "search_engine_selected": search_engine,
+        }
+
+        # Set search context for search tracking
+        set_search_context(shared_research_context)
+
         # Set up progress callback
         def progress_callback(message, progress_percent, metadata):
             # Frequent termination check
-            if research_id in termination_flags and termination_flags[research_id]:
-                handle_termination(research_id, active_research, termination_flags)
+            if (
+                research_id in termination_flags
+                and termination_flags[research_id]
+            ):
+                handle_termination(
+                    research_id, active_research, termination_flags
+                )
                 raise Exception("Research was terminated by user")
+
+            logger.log("milestone", message)
+
             if "SEARCH_PLAN:" in message:
                 engines = message.split("SEARCH_PLAN:")[1].strip()
                 metadata["planned_engines"] = engines
                 metadata["phase"] = "search_planning"  # Use existing phase
+                # Update shared context for token tracking
+                shared_research_context["search_engines_planned"] = engines
+                shared_research_context["research_phase"] = "search_planning"
 
             if "ENGINE_SELECTED:" in message:
                 engine = message.split("ENGINE_SELECTED:")[1].strip()
                 metadata["selected_engine"] = engine
                 metadata["phase"] = "search"  # Use existing 'search' phase
+                # Update shared context for token tracking
+                shared_research_context["search_engine_selected"] = engine
+                shared_research_context["research_phase"] = "search"
 
-            timestamp = datetime.utcnow().isoformat()
+            # Capture other research phases for better context tracking
+            if metadata.get("phase"):
+                shared_research_context["research_phase"] = metadata["phase"]
+
+            # Update search iteration if available
+            if "iteration" in metadata:
+                shared_research_context["search_iteration"] = metadata[
+                    "iteration"
+                ]
 
             # Adjust progress based on research mode
             adjusted_progress = progress_percent
-            if mode == "detailed" and metadata.get("phase") == "output_generation":
+            if (
+                mode == "detailed"
+                and metadata.get("phase") == "output_generation"
+            ):
                 # For detailed mode, adjust the progress range for output generation
                 adjusted_progress = min(80, progress_percent)
-            elif mode == "detailed" and metadata.get("phase") == "report_generation":
+            elif (
+                mode == "detailed"
+                and metadata.get("phase") == "report_generation"
+            ):
                 # Scale the progress from 80% to 95% for the report generation phase
                 if progress_percent is not None:
                     normalized = progress_percent / 100
                     adjusted_progress = 80 + (normalized * 15)
-            elif mode == "quick" and metadata.get("phase") == "output_generation":
+            elif (
+                mode == "quick" and metadata.get("phase") == "output_generation"
+            ):
                 # For quick mode, ensure we're at least at 85% during output generation
                 adjusted_progress = max(85, progress_percent)
                 # Map any further progress within output_generation to 85-95% range
@@ -179,39 +325,15 @@ def run_research_process(
 
             # Don't let progress go backwards
             if research_id in active_research and adjusted_progress is not None:
-                current_progress = active_research[research_id].get("progress", 0)
+                current_progress = active_research[research_id].get(
+                    "progress", 0
+                )
                 adjusted_progress = max(current_progress, adjusted_progress)
-
-            log_entry = {
-                "time": timestamp,
-                "message": message,
-                "progress": adjusted_progress,
-                "metadata": metadata,
-            }
 
             # Update active research record
             if research_id in active_research:
-                active_research[research_id]["log"].append(log_entry)
                 if adjusted_progress is not None:
                     active_research[research_id]["progress"] = adjusted_progress
-
-                # Determine log type for database storage
-                log_type = "info"
-                if metadata and metadata.get("phase"):
-                    phase = metadata.get("phase")
-                    if phase in ["complete", "iteration_complete"]:
-                        log_type = "milestone"
-                    elif phase == "error" or "error" in message.lower():
-                        log_type = "error"
-
-                # Save logs to the database
-                add_log_to_db(
-                    research_id,
-                    message,
-                    log_type=log_type,
-                    progress=adjusted_progress,
-                    metadata=metadata,
-                )
 
                 # Update progress in the research_history table (for backward compatibility)
                 conn = get_db_connection()
@@ -237,7 +359,6 @@ def run_research_process(
                     except Exception:
                         current_log = []
 
-                    current_log.append(log_entry)
                     cursor.execute(
                         "UPDATE research_history SET progress_log = ? WHERE id = ?",
                         (json.dumps(current_log), research_id),
@@ -249,20 +370,23 @@ def run_research_process(
                 # Emit a socket event
                 try:
                     # Basic event data
-                    event_data = {"message": message, "progress": adjusted_progress}
+                    event_data = {"progress": adjusted_progress}
 
-                    # Add log entry in full format for detailed logging on client
-                    if metadata:
-                        event_data["log_entry"] = log_entry
-
-                    emit_to_subscribers("research_progress", research_id, event_data)
+                    SocketIOService().emit_to_subscribers(
+                        "progress", research_id, event_data
+                    )
                 except Exception:
                     logger.exception("Socket emit error (non-critical)")
 
         # Function to check termination during long-running operations
         def check_termination():
-            if research_id in termination_flags and termination_flags[research_id]:
-                handle_termination(research_id, active_research, termination_flags)
+            if (
+                research_id in termination_flags
+                and termination_flags[research_id]
+            ):
+                handle_termination(
+                    research_id, active_research, termination_flags
+                )
                 raise Exception(
                     "Research was terminated by user during long-running operation"
                 )
@@ -279,12 +403,22 @@ def run_research_process(
         # Override LLM if model or model_provider specified
         if model or model_provider:
             try:
+                # Phase 1 Enhancement: Build research context for token tracking
+                research_context = {
+                    "research_query": query,
+                    "research_mode": mode,
+                    "research_phase": "init",
+                    "search_iteration": 0,
+                }
+
                 # Get LLM with the overridden settings
                 # Explicitly create the model with parameters to avoid fallback issues
                 use_llm = get_llm(
                     model_name=model,
                     provider=model_provider,
                     openai_endpoint_url=custom_endpoint,
+                    research_id=research_id,
+                    research_context=research_context,
                 )
 
                 logger.info(
@@ -300,7 +434,7 @@ def run_research_process(
                 )
 
         # Set the progress callback in the system
-        system = AdvancedSearchSystem(llm=use_llm)
+        system = AdvancedSearchSystem(llm=use_llm, strategy_name=strategy)
         system.set_progress_callback(progress_callback)
 
         # Override search engine if specified
@@ -309,16 +443,22 @@ def run_research_process(
                 if iterations:
                     system.max_iterations = int(iterations)
                 if questions_per_iteration:
-                    system.questions_per_iteration = int(questions_per_iteration)
+                    system.questions_per_iteration = int(
+                        questions_per_iteration
+                    )
 
                 # Create a new search object with these settings
                 system.search = get_search(
                     search_tool=search_engine, llm_instance=system.model
                 )
 
-                logger.info("Successfully set search engine to: %s", search_engine)
+                logger.info(
+                    "Successfully set search engine to: %s", search_engine
+                )
             except Exception:
-                logger.exception("Error setting search engine to %s", search_engine)
+                logger.exception(
+                    "Error setting search engine to %s", search_engine
+                )
 
         # Run the search
         progress_callback("Starting research process", 5, {"phase": "init"})
@@ -385,21 +525,32 @@ def run_research_process(
                     ):
                         error_type = "token_limit"
                         # Log specific error type
-                        logger.warning("Detected token limit error in synthesis")
+                        logger.warning(
+                            "Detected token limit error in synthesis"
+                        )
 
                         # Update progress with specific error type
                         progress_callback(
                             "Synthesis hit token limits. Attempting fallback...",
                             87,
-                            {"phase": "synthesis_error", "error_type": error_type},
+                            {
+                                "phase": "synthesis_error",
+                                "error_type": error_type,
+                            },
                         )
-                    elif "timeout" in error_message or "timed out" in error_message:
+                    elif (
+                        "timeout" in error_message
+                        or "timed out" in error_message
+                    ):
                         error_type = "timeout"
                         logger.warning("Detected timeout error in synthesis")
                         progress_callback(
                             "Synthesis timed out. Attempting fallback...",
                             87,
-                            {"phase": "synthesis_error", "error_type": error_type},
+                            {
+                                "phase": "synthesis_error",
+                                "error_type": error_type,
+                            },
                         )
                     elif "rate limit" in error_message:
                         error_type = "rate_limit"
@@ -407,26 +558,40 @@ def run_research_process(
                         progress_callback(
                             "LLM rate limit reached. Attempting fallback...",
                             87,
-                            {"phase": "synthesis_error", "error_type": error_type},
+                            {
+                                "phase": "synthesis_error",
+                                "error_type": error_type,
+                            },
                         )
-                    elif "connection" in error_message or "network" in error_message:
+                    elif (
+                        "connection" in error_message
+                        or "network" in error_message
+                    ):
                         error_type = "connection"
                         logger.warning("Detected connection error in synthesis")
                         progress_callback(
                             "Connection issue with LLM. Attempting fallback...",
                             87,
-                            {"phase": "synthesis_error", "error_type": error_type},
+                            {
+                                "phase": "synthesis_error",
+                                "error_type": error_type,
+                            },
                         )
                     elif (
                         "llm error" in error_message
                         or "final answer synthesis fail" in error_message
                     ):
                         error_type = "llm_error"
-                        logger.warning("Detected general LLM error in synthesis")
+                        logger.warning(
+                            "Detected general LLM error in synthesis"
+                        )
                         progress_callback(
                             "LLM error during synthesis. Attempting fallback...",
                             87,
-                            {"phase": "synthesis_error", "error_type": error_type},
+                            {
+                                "phase": "synthesis_error",
+                                "error_type": error_type,
+                            },
                         )
                     else:
                         # Generic error
@@ -434,7 +599,10 @@ def run_research_process(
                         progress_callback(
                             "Error during synthesis. Attempting fallback...",
                             87,
-                            {"phase": "synthesis_error", "error_type": "unknown"},
+                            {
+                                "phase": "synthesis_error",
+                                "error_type": "unknown",
+                            },
                         )
 
                     # Extract synthesized content from findings if available
@@ -445,11 +613,13 @@ def run_research_process(
                             break
 
                     # Use synthesized content as fallback
-                    if synthesized_content and not synthesized_content.startswith(
-                        "Error:"
+                    if (
+                        synthesized_content
+                        and not synthesized_content.startswith("Error:")
                     ):
-
-                        logger.info("Using existing synthesized content as fallback")
+                        logger.info(
+                            "Using existing synthesized content as fallback"
+                        )
                         raw_formatted_findings = synthesized_content
 
                     # Or use current_knowledge as another fallback
@@ -465,17 +635,19 @@ def run_research_process(
                             f"## {finding.get('phase', 'Finding')}\n\n{finding.get('content', '')}"
                             for finding in results.get("findings", [])
                             if finding.get("content")
-                            and not finding.get("content", "").startswith("Error:")
+                            and not finding.get("content", "").startswith(
+                                "Error:"
+                            )
                         ]
 
                         if valid_findings:
                             raw_formatted_findings = (
                                 "# Research Results (Fallback Mode)\n\n"
                             )
-                            raw_formatted_findings += "\n\n".join(valid_findings)
-                            raw_formatted_findings += (
-                                f"\n\n## Error Information\n{raw_formatted_findings}"
+                            raw_formatted_findings += "\n\n".join(
+                                valid_findings
                             )
+                            raw_formatted_findings += f"\n\n## Error Information\n{raw_formatted_findings}"
                         else:
                             # Last resort: use everything including errors
                             raw_formatted_findings = (
@@ -491,7 +663,10 @@ def run_research_process(
                     progress_callback(
                         f"Using fallback synthesis due to {error_type} error",
                         88,
-                        {"phase": "synthesis_fallback", "error_type": error_type},
+                        {
+                            "phase": "synthesis_fallback",
+                            "error_type": error_type,
+                        },
                     )
 
                 logger.info(
@@ -531,8 +706,9 @@ def run_research_process(
                     )
 
                     # Save as markdown file
-                    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
                     report_path = _generate_report_path(query)
+                    output_dir = report_path.parent
+                    output_dir.mkdir(parents=True, exist_ok=True)
 
                     # Send progress update for writing to file
                     progress_callback(
@@ -547,8 +723,12 @@ def run_research_process(
                         f.write(f"Query: {query}\n\n")
                         f.write(clean_markdown)
                         f.write("\n\n## Research Metrics\n")
-                        f.write(f"- Search Iterations: {results['iterations']}\n")
-                        f.write(f"- Generated at: {datetime.utcnow().isoformat()}\n")
+                        f.write(
+                            f"- Search Iterations: {results['iterations']}\n"
+                        )
+                        f.write(
+                            f"- Generated at: {datetime.utcnow().isoformat()}\n"
+                        )
 
                     # Update database
                     metadata = {
@@ -560,7 +740,9 @@ def run_research_process(
                     now = datetime.utcnow()
                     completed_at = now.isoformat()
 
-                    logger.info("Updating database for research_id: %s", research_id)
+                    logger.info(
+                        "Updating database for research_id: %s", research_id
+                    )
                     # Get the start time from the database
                     conn = get_db_connection()
                     cursor = conn.cursor()
@@ -605,11 +787,15 @@ def run_research_process(
                     cleanup_research_resources(
                         research_id, active_research, termination_flags
                     )
-                    logger.info("Resources cleaned up for research_id: %s", research_id)
+                    logger.info(
+                        "Resources cleaned up for research_id: %s", research_id
+                    )
 
                 except Exception as inner_e:
                     logger.exception("Error during quick summary generation")
-                    raise Exception(f"Error generating quick summary: {str(inner_e)}")
+                    raise Exception(
+                        f"Error generating quick summary: {str(inner_e)}"
+                    )
             else:
                 raise Exception(
                     "No research findings were generated. Please try again."
@@ -617,14 +803,18 @@ def run_research_process(
         else:
             # Full Report
             progress_callback(
-                "Generating detailed report...", 85, {"phase": "report_generation"}
+                "Generating detailed report...",
+                85,
+                {"phase": "report_generation"},
             )
 
             # Extract the search system from the results if available
             search_system = results.get("search_system", None)
 
             # Pass the existing search system to maintain citation indices
-            report_generator = IntegratedReportGenerator(search_system=search_system)
+            report_generator = IntegratedReportGenerator(
+                search_system=search_system
+            )
             final_report = report_generator.generate_report(results, query)
 
             progress_callback(
@@ -632,8 +822,9 @@ def run_research_process(
             )
 
             # Save as markdown file
-            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
             report_path = _generate_report_path(query)
+            output_dir = report_path.parent
+            output_dir.mkdir(parents=True, exist_ok=True)
 
             with report_path.open("w", encoding="utf-8") as f:
                 f.write(final_report["content"])
@@ -650,7 +841,8 @@ def run_research_process(
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT created_at FROM research_history WHERE id = ?", (research_id,)
+                "SELECT created_at FROM research_history WHERE id = ?",
+                (research_id,),
             )
             result = cursor.fetchone()
 
@@ -678,7 +870,9 @@ def run_research_process(
             )
 
             # Clean up resources
-            cleanup_research_resources(research_id, active_research, termination_flags)
+            cleanup_research_resources(
+                research_id, active_research, termination_flags
+            )
 
     except Exception as e:
         # Handle error
@@ -696,9 +890,7 @@ def run_research_process(
                     "solution": "Start Ollama with 'ollama serve' or check if it's installed correctly."
                 }
             elif "Error type: model_not_found" in user_friendly_error:
-                user_friendly_error = (
-                    "Required Ollama model not found. Please pull the model first."
-                )
+                user_friendly_error = "Required Ollama model not found. Please pull the model first."
                 error_context = {
                     "solution": "Run 'ollama pull mistral' to download the required model."
                 }
@@ -709,7 +901,9 @@ def run_research_process(
                 }
             elif "Error type: api_error" in user_friendly_error:
                 # Keep the original error message as it's already improved
-                error_context = {"solution": "Check API configuration and credentials."}
+                error_context = {
+                    "solution": "Check API configuration and credentials."
+                }
 
             # Update metadata with more context about the error
             metadata = {"phase": "error", "error": user_friendly_error}
@@ -726,7 +920,10 @@ def run_research_process(
             # If termination was requested, mark as suspended instead of failed
             status = (
                 "suspended"
-                if (research_id in termination_flags and termination_flags[research_id])
+                if (
+                    research_id in termination_flags
+                    and termination_flags[research_id]
+                )
                 else "failed"
             )
             message = (
@@ -742,7 +939,8 @@ def run_research_process(
             # Get the start time from the database
             duration_seconds = None
             cursor.execute(
-                "SELECT created_at FROM research_history WHERE id = ?", (research_id,)
+                "SELECT created_at FROM research_history WHERE id = ?",
+                (research_id,),
             )
             result = cursor.fetchone()
 
@@ -764,7 +962,7 @@ def run_research_process(
             conn.close()
 
             try:
-                emit_to_subscribers(
+                SocketIOService().emit_to_subscribers(
                     "research_progress",
                     research_id,
                     {"status": status, "error": message},
@@ -776,7 +974,9 @@ def run_research_process(
             logger.exception("Error in error handler")
 
         # Clean up resources
-        cleanup_research_resources(research_id, active_research, termination_flags)
+        cleanup_research_resources(
+            research_id, active_research, termination_flags
+        )
 
 
 def cleanup_research_resources(research_id, active_research, termination_flags):
@@ -816,13 +1016,16 @@ def cleanup_research_resources(research_id, active_research, termination_flags):
     # Send a final message to subscribers
     try:
         # Import here to avoid circular imports
-        from ..routes.research_routes import get_globals
+        from ..routes.globals import get_globals
 
         globals_dict = get_globals()
         socket_subscriptions = globals_dict.get("socket_subscriptions", {})
 
         # Send a final message to any remaining subscribers with explicit status
-        if research_id in socket_subscriptions and socket_subscriptions[research_id]:
+        if (
+            research_id in socket_subscriptions
+            and socket_subscriptions[research_id]
+        ):
             # Use the proper status message based on database status
             if current_status == "suspended" or current_status == "failed":
                 final_message = {
@@ -843,7 +1046,9 @@ def cleanup_research_resources(research_id, active_research, termination_flags):
                 research_id,
             )
 
-            emit_to_subscribers("research_progress", research_id, final_message)
+            SocketIOService().emit_to_subscribers(
+                "research_progress", research_id, final_message
+            )
 
     except Exception:
         logger.error("Error sending final cleanup message")
@@ -874,7 +1079,9 @@ def handle_termination(research_id, active_research, termination_flags):
     result = cursor.fetchone()
 
     # Calculate the duration
-    duration_seconds = calculate_duration(result[0]) if result and result[0] else None
+    duration_seconds = (
+        calculate_duration(result[0]) if result and result[0] else None
+    )
 
     # Update the database with suspended status
     cursor.execute(
@@ -899,7 +1106,7 @@ def cancel_research(research_id):
         bool: True if the research was found and cancelled, False otherwise
     """
     # Import globals from research routes
-    from ..routes.research_routes import get_globals
+    from ..routes.globals import get_globals
 
     globals_dict = get_globals()
     active_research = globals_dict["active_research"]

@@ -17,12 +17,6 @@ import argparse
 import os
 import sys
 
-# Add the src directory to the Python path
-project_root = os.path.abspath(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-)
-sys.path.insert(0, os.path.join(project_root, "src"))
-
 # Import the benchmark functionality
 from local_deep_research.benchmarks.benchmark_functions import evaluate_simpleqa
 
@@ -48,13 +42,17 @@ def main():
         default=os.path.join("examples", "benchmarks", "results", "simpleqa"),
         help="Output directory",
     )
-    parser.add_argument("--no-eval", action="store_true", help="Skip evaluation")
+    parser.add_argument(
+        "--no-eval", action="store_true", help="Skip evaluation"
+    )
 
     # Optional evaluation parameters
     parser.add_argument(
         "--human-eval", action="store_true", help="Use human evaluation"
     )
-    parser.add_argument("--eval-model", type=str, help="Model to use for evaluation")
+    parser.add_argument(
+        "--eval-model", type=str, help="Model to use for evaluation"
+    )
     parser.add_argument(
         "--eval-provider", type=str, help="Provider to use for evaluation"
     )
@@ -64,19 +62,30 @@ def main():
         "--search-model", type=str, help="Model to use for the search system"
     )
     parser.add_argument(
-        "--search-provider", type=str, help="Provider to use for the search system"
+        "--search-provider",
+        type=str,
+        help="Provider to use for the search system",
     )
     parser.add_argument(
-        "--endpoint-url", type=str, help="Endpoint URL for OpenRouter or other API services"
+        "--endpoint-url",
+        type=str,
+        help="Endpoint URL for OpenRouter or other API services",
     )
     parser.add_argument(
-        "--search-strategy", type=str, default="source_based",
-        choices=["source_based", "standard", "rapid", "parallel", "iterdrag"],
-        help="Search strategy to use (default: source_based)"
+        "--search-strategy",
+        type=str,
+        default="source_based",
+        choices=[
+            "source_based",
+            "standard",
+            "rapid",
+            "parallel",
+            "iterdrag",
+            "modular",
+        ],
+        help="Search strategy to use (default: source_based)",
     )
-    parser.add_argument(
-        "--api-key", type=str, help="API key for LLM provider"
-    )
+    parser.add_argument("--api-key", type=str, help="API key for LLM provider")
 
     args = parser.parse_args()
 

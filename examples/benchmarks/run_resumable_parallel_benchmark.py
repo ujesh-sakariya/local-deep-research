@@ -32,12 +32,19 @@ from local_deep_research.benchmarks.graders import (
     extract_answer_from_response,
     grade_results,
 )
-from local_deep_research.benchmarks.metrics import calculate_metrics, generate_report
+from local_deep_research.benchmarks.metrics import (
+    calculate_metrics,
+    generate_report,
+)
 from local_deep_research.benchmarks.runners import format_query
 
-PROJECT_ROOT = os.path.abspath(
+
+# Add the src directory to the Python path
+project_root = os.path.abspath(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 )
+
+logger.enable("local_deep_research")
 
 
 def load_existing_results(results_file: str) -> Dict[str, Dict]:
@@ -55,12 +62,16 @@ def load_existing_results(results_file: str) -> Dict[str, Dict]:
                         if result_id:
                             results[result_id] = result
                     except json.JSONDecodeError:
-                        logger.warning(f"Skipping invalid JSON line: {line[:50]}...")
+                        logger.warning(
+                            f"Skipping invalid JSON line: {line[:50]}..."
+                        )
         logger.info(f"Loaded {len(results)} existing results")
     return results
 
 
-def find_latest_results_file(output_dir: str, dataset_type: str) -> Optional[str]:
+def find_latest_results_file(
+    output_dir: str, dataset_type: str
+) -> Optional[str]:
     """Find the most recent results file for a dataset."""
     # First try dataset subdirectory
     dataset_dir = os.path.join(output_dir, dataset_type)
@@ -97,21 +108,27 @@ def run_resumable_benchmark(
     dataset = load_dataset(
         dataset_type=dataset_type,
         num_examples=num_examples,
-        seed=42,  # Fixed seed for reproducibility
+        seed=None,  # Random seed for truly random sampling
     )
 
     # Determine output files
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_file = os.path.join(output_dir, f"{dataset_type}_{timestamp}_results.jsonl")
+    results_file = os.path.join(
+        output_dir, f"{dataset_type}_{timestamp}_results.jsonl"
+    )
     evaluation_file = os.path.join(
         output_dir, f"{dataset_type}_{timestamp}_evaluation.jsonl"
     )
-    report_file = os.path.join(output_dir, f"{dataset_type}_{timestamp}_report.md")
+    report_file = os.path.join(
+        output_dir, f"{dataset_type}_{timestamp}_report.md"
+    )
 
     # Load existing results if resuming
     existing_results = {}
     if resume_from:
-        existing_results_file = find_latest_results_file(resume_from, dataset_type)
+        existing_results_file = find_latest_results_file(
+            resume_from, dataset_type
+        )
         if existing_results_file:
             existing_results = load_existing_results(existing_results_file)
             logger.info(
@@ -174,7 +191,7 @@ def run_resumable_benchmark(
                     ),
                     search_tool=search_config.get("search_tool", "searxng"),
                     search_strategy=search_config.get(
-                        "search_strategy", "source-based"
+                        "search_strategy", "source_based"
                     ),
                 )
 
@@ -231,11 +248,14 @@ def run_resumable_benchmark(
     # Run evaluation on all results
     logger.info(f"Running evaluation for {dataset_type}")
     try:
-        grade_results(
+        evaluation_results = grade_results(
             results_file=results_file,
             output_file=evaluation_file,
             dataset_type=dataset_type,
             evaluation_config=evaluation_config,
+        )
+        logger.info(
+            f"Evaluation results for {dataset_type}: {evaluation_results}"
         )
 
         # Calculate metrics
@@ -268,7 +288,9 @@ def run_resumable_benchmark(
 
 def run_simpleqa_benchmark_wrapper(args: Tuple) -> Dict[str, Any]:
     """Wrapper for running SimpleQA benchmark in parallel."""
-    num_examples, output_dir, resume_from, search_config, evaluation_config = args
+    num_examples, output_dir, resume_from, search_config, evaluation_config = (
+        args
+    )
 
     logger.info(f"Starting SimpleQA benchmark with {num_examples} examples")
     start_time = time.time()
@@ -290,7 +312,9 @@ def run_simpleqa_benchmark_wrapper(args: Tuple) -> Dict[str, Any]:
 
 def run_browsecomp_benchmark_wrapper(args: Tuple) -> Dict[str, Any]:
     """Wrapper for running BrowseComp benchmark in parallel."""
-    num_examples, output_dir, resume_from, search_config, evaluation_config = args
+    num_examples, output_dir, resume_from, search_config, evaluation_config = (
+        args
+    )
 
     logger.info(f"Starting BrowseComp benchmark with {num_examples} examples")
     start_time = time.time()
@@ -313,7 +337,9 @@ def run_browsecomp_benchmark_wrapper(args: Tuple) -> Dict[str, Any]:
     return results
 
 
-def setup_llm_environment(model=None, provider=None, endpoint_url=None, api_key=None):
+def setup_llm_environment(
+    model=None, provider=None, endpoint_url=None, api_key=None
+):
     """Set up environment variables for LLM configuration."""
     if model:
         os.environ["LDR_LLM_MODEL"] = model
@@ -324,6 +350,7 @@ def setup_llm_environment(model=None, provider=None, endpoint_url=None, api_key=
         logger.info(f"Using LLM provider: {provider}")
 
     if endpoint_url:
+        os.environ["OPENAI_ENDPOINT_URL"] = endpoint_url
         os.environ["LDR_LLM_OPENAI_ENDPOINT_URL"] = endpoint_url
         os.environ["LDR_LLM_OLLAMA_URL"] = endpoint_url
         logger.info(f"Using endpoint URL: {endpoint_url}")
@@ -331,8 +358,10 @@ def setup_llm_environment(model=None, provider=None, endpoint_url=None, api_key=
     if api_key:
         # Set the appropriate environment variable based on provider
         if provider == "openai":
+            os.environ["OPENAI_API_KEY"] = api_key
             os.environ["LDR_LLM_OPENAI_API_KEY"] = api_key
         elif provider == "openai_endpoint":
+            os.environ["OPENAI_ENDPOINT_API_KEY"] = api_key
             os.environ["LDR_LLM_OPENAI_ENDPOINT_API_KEY"] = api_key
         elif provider == "anthropic":
             os.environ["ANTHROPIC_API_KEY"] = api_key
@@ -341,7 +370,6 @@ def setup_llm_environment(model=None, provider=None, endpoint_url=None, api_key=
         logger.info("API key configured")
 
 
-@logger.catch()
 def main():
     parser = argparse.ArgumentParser(
         description="Run SimpleQA and BrowseComp benchmarks in parallel with resume capability"
@@ -349,8 +377,8 @@ def main():
     parser.add_argument(
         "--examples",
         type=int,
-        default=300,
-        help="Number of examples for each benchmark (default: 300)",
+        default=20,
+        help="Number of examples for each benchmark (default: 20)",
     )
     parser.add_argument(
         "--resume-from",
@@ -359,7 +387,8 @@ def main():
 
     # LLM configuration options
     parser.add_argument(
-        "--model", help="Model name for the LLM (e.g., 'google/gemini-2.0-flash-001')"
+        "--model",
+        help="Model name for the LLM (e.g., 'google/gemini-2.0-flash-001')",
     )
     parser.add_argument(
         "--provider",
@@ -378,15 +407,17 @@ def main():
         # Create new directory but link to old results
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = os.path.join(
-            PROJECT_ROOT, "benchmark_results", f"resumed_benchmark_{timestamp}"
+            project_root, "benchmark_results", f"resumed_benchmark_{timestamp}"
         )
         os.makedirs(output_dir, exist_ok=True)
-        logger.info(f"Resuming from {args.resume_from}, new results in {output_dir}")
+        logger.info(
+            f"Resuming from {args.resume_from}, new results in {output_dir}"
+        )
     else:
         # Create new timestamp directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_dir = os.path.join(
-            PROJECT_ROOT, "benchmark_results", f"parallel_benchmark_{timestamp}"
+            project_root, "benchmark_results", f"parallel_benchmark_{timestamp}"
         )
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Starting new benchmark in: {output_dir}")
@@ -407,10 +438,11 @@ def main():
 
     # Set up configurations
     search_config = {
-        "iterations": 2,
-        "questions_per_iteration": 3,
+        "iterations": 8,  # Increased for BrowseComp with source-based strategy
+        "questions_per_iteration": 5,  # Good for source-based strategy
         "search_tool": "searxng",
-        "search_strategy": "source-based",
+        "search_strategy": "source-based",  # Test source-based strategy
+        # performance
     }
 
     # Add model configurations if provided
@@ -482,7 +514,7 @@ def main():
     print(" PARALLEL BENCHMARK SUMMARY ")
     print("=" * 50)
     print(f"Total duration: {total_duration:.1f} seconds")
-    print("Examples per benchmark: {args.examples}")
+    print(f"Examples per benchmark: {args.examples}")
     if args.resume_from:
         print(f"Resumed from: {args.resume_from}")
 

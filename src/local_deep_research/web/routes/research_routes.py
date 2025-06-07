@@ -15,31 +15,19 @@ from flask import (
 )
 from loguru import logger
 
-from ..models.database import add_log_to_db, calculate_duration, get_db_connection
-from ..services.research_service import run_research_process, start_research_process
+from ..models.database import calculate_duration, get_db_connection
+from ..services.research_service import (
+    run_research_process,
+    start_research_process,
+)
 from ..utils.templates import render_template_with_defaults
+from .globals import active_research, termination_flags
 
 # Create a Blueprint for the research application
 research_bp = Blueprint("research", __name__, url_prefix="/research")
 
-# Active research processes and socket subscriptions
-active_research = {}
-socket_subscriptions = {}
-
-# Add termination flags dictionary
-termination_flags = {}
-
 # Output directory for research results
 OUTPUT_DIR = "research_outputs"
-
-
-# Return reference to globals for other modules to access
-def get_globals():
-    return {
-        "active_research": active_research,
-        "socket_subscriptions": socket_subscriptions,
-        "termination_flags": termination_flags,
-    }
 
 
 # Route for index page - redirection
@@ -141,12 +129,15 @@ def start_research():
     iterations = data.get("iterations")
     questions_per_iteration = data.get("questions_per_iteration")
 
+    # Add strategy parameter with default value
+    strategy = data.get("strategy", "source-based")
+
     # Log the selections for troubleshooting
     logger.info(
         f"Starting research with provider: {model_provider}, model: {model}, search engine: {search_engine}"
     )
     logger.info(
-        f"Additional parameters: max_results={max_results}, time_period={time_period}, iterations={iterations}, questions={questions_per_iteration}"
+        f"Additional parameters: max_results={max_results}, time_period={time_period}, iterations={iterations}, questions={questions_per_iteration}, strategy={strategy}"
     )
 
     if not query:
@@ -176,7 +167,8 @@ def start_research():
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT status FROM research_history WHERE id = ?", (research_id,)
+                "SELECT status FROM research_history WHERE id = ?",
+                (research_id,),
             )
             result = cursor.fetchone()
             conn.close()
@@ -235,9 +227,7 @@ def start_research():
             mode,
             "in_progress",
             created_at,
-            json.dumps(
-                [{"time": created_at, "message": "Research started", "progress": 0}]
-            ),
+            json.dumps([{"time": created_at, "progress": 0}]),
             json.dumps(research_settings),
         ),
     )
@@ -261,6 +251,7 @@ def start_research():
         time_period=time_period,
         iterations=iterations,
         questions_per_iteration=questions_per_iteration,
+        strategy=strategy,
     )
 
     # Store the thread reference in active_research
@@ -276,12 +267,16 @@ def terminate_research(research_id):
     # Check if the research exists and is in progress
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT status FROM research_history WHERE id = ?", (research_id,))
+    cursor.execute(
+        "SELECT status FROM research_history WHERE id = ?", (research_id,)
+    )
     result = cursor.fetchone()
 
     if not result:
         conn.close()
-        return jsonify({"status": "error", "message": "Research not found"}), 404
+        return jsonify(
+            {"status": "error", "message": "Research not found"}
+        ), 404
 
     status = result[0]
 
@@ -289,7 +284,9 @@ def terminate_research(research_id):
     if status != "in_progress":
         conn.close()
         return (
-            jsonify({"status": "error", "message": "Research is not in progress"}),
+            jsonify(
+                {"status": "error", "message": "Research is not in progress"}
+            ),
             400,
         )
 
@@ -324,13 +321,7 @@ def terminate_research(research_id):
     active_research[research_id]["log"].append(log_entry)
 
     # Add to database log
-    add_log_to_db(
-        research_id,
-        termination_message,
-        log_type="milestone",
-        progress=current_progress,
-        metadata={"phase": "termination"},
-    )
+    logger.log("milestone", "Research ended: {}", termination_message)
 
     # Update the log in the database (old way for backward compatibility)
     cursor.execute(
@@ -370,7 +361,9 @@ def terminate_research(research_id):
     except Exception:
         logger.exception("Socket emit error (non-critical)")
 
-    return jsonify({"status": "success", "message": "Research termination requested"})
+    return jsonify(
+        {"status": "success", "message": "Research termination requested"}
+    )
 
 
 @research_bp.route("/api/delete/<int:research_id>", methods=["DELETE"])
@@ -381,13 +374,16 @@ def delete_research(research_id):
 
     # First check if the research exists and is not in progress
     cursor.execute(
-        "SELECT status, report_path FROM research_history WHERE id = ?", (research_id,)
+        "SELECT status, report_path FROM research_history WHERE id = ?",
+        (research_id,),
     )
     result = cursor.fetchone()
 
     if not result:
         conn.close()
-        return jsonify({"status": "error", "message": "Research not found"}), 404
+        return jsonify(
+            {"status": "error", "message": "Research not found"}
+        ), 404
 
     status, report_path = result
 
@@ -477,7 +473,9 @@ def open_file_location():
 
     # Check if path exists
     if not os.path.exists(file_path):
-        return jsonify({"status": "error", "message": "Path does not exist"}), 404
+        return jsonify(
+            {"status": "error", "message": "Path does not exist"}
+        ), 404
 
     try:
         if platform.system() == "Windows":
@@ -506,13 +504,17 @@ def save_raw_config():
 
     if not raw_config:
         return (
-            jsonify({"success": False, "error": "Raw configuration is required"}),
+            jsonify(
+                {"success": False, "error": "Raw configuration is required"}
+            ),
             400,
         )
 
     try:
         # Get the config file path
-        config_dir = os.path.join(os.path.expanduser("~"), ".local_deep_research")
+        config_dir = os.path.join(
+            os.path.expanduser("~"), ".local_deep_research"
+        )
         os.makedirs(config_dir, exist_ok=True)
         config_path = os.path.join(config_dir, "config.toml")
 
@@ -577,7 +579,9 @@ def get_history():
             duration_seconds = None
             if completed_at and created_at:
                 try:
-                    duration_seconds = calculate_duration(created_at, completed_at)
+                    duration_seconds = calculate_duration(
+                        created_at, completed_at
+                    )
                 except Exception:
                     logger.exception("Error calculating duration")
 
@@ -604,6 +608,187 @@ def get_history():
     except Exception as e:
         logger.exception("Error getting history")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@research_bp.route("/api/research/<int:research_id>")
+def get_research_details(research_id):
+    """Get full details of a research"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT id, query, status, progress, mode,
+               created_at, completed_at, report_path, metadata
+               FROM research_history WHERE id = ?""",
+            (research_id,),
+        )
+        result = cursor.fetchone()
+
+        if result is None:
+            conn.close()
+            return jsonify({"error": "Research not found"}), 404
+
+        # Unpack the result
+        (
+            research_id,
+            query,
+            status,
+            progress,
+            mode,
+            created_at,
+            completed_at,
+            report_path,
+            metadata_str,
+        ) = result
+
+        # Parse metadata if it exists
+        metadata = {}
+        if metadata_str:
+            try:
+                metadata = json.loads(metadata_str)
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Invalid JSON in metadata for research {research_id}"
+                )
+
+        conn.close()
+
+        return jsonify(
+            {
+                "id": research_id,
+                "query": query,
+                "status": status,
+                "progress": progress,
+                "progress_percentage": progress or 0,
+                "mode": mode,
+                "created_at": created_at,
+                "completed_at": completed_at,
+                "report_path": report_path,
+                "metadata": metadata,
+            }
+        )
+    except Exception as e:
+        logger.exception(f"Error getting research details: {str(e)}")
+        return jsonify({"error": "An internal error has occurred"}), 500
+
+
+@research_bp.route("/api/research/<int:research_id>/logs")
+def get_research_logs(research_id):
+    """Get logs for a specific research"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # First check if the research exists
+        cursor.execute(
+            "SELECT id FROM research_history WHERE id = ?", (research_id,)
+        )
+        if cursor.fetchone() is None:
+            conn.close()
+            return jsonify({"error": "Research not found"}), 404
+
+        # Get logs from research_logs table
+        cursor.execute(
+            """SELECT id, message, timestamp, log_type, progress, metadata
+               FROM research_logs
+               WHERE research_id = ?
+               ORDER BY timestamp ASC""",
+            (research_id,),
+        )
+
+        logs = []
+        for row in cursor.fetchall():
+            log_id, message, timestamp, log_type, progress, metadata_str = row
+
+            # Parse metadata if it exists
+            metadata = {}
+            if metadata_str:
+                try:
+                    metadata = json.loads(metadata_str)
+                except json.JSONDecodeError:
+                    pass
+
+            logs.append(
+                {
+                    "id": log_id,
+                    "message": message,
+                    "timestamp": timestamp,
+                    "log_type": log_type,
+                    "progress": progress,
+                    "metadata": metadata,
+                }
+            )
+
+        conn.close()
+        return jsonify(logs)
+
+    except Exception as e:
+        logger.exception(f"Error getting research logs: {str(e)}")
+        return jsonify({"error": "An internal error has occurred"}), 500
+
+
+@research_bp.route("/api/report/<int:research_id>")
+def get_research_report(research_id):
+    """Get the research report content"""
+    from ..database.models import Research
+    from ...utilities.db_utils import get_db_session
+
+    session = get_db_session()
+    try:
+        # Query using ORM
+        research = session.query(Research).filter_by(id=research_id).first()
+
+        if research is None:
+            return jsonify({"error": "Research not found"}), 404
+
+        # Parse metadata if it exists
+        metadata = {}
+        if research.metadata:
+            try:
+                metadata = json.loads(research.metadata)
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"Invalid JSON in metadata for research {research_id}"
+                )
+
+        # Check if report file exists
+        if not research.report_path or not os.path.exists(research.report_path):
+            return jsonify({"error": "Report file not found"}), 404
+
+        # Read the report content
+        try:
+            with open(research.report_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            logger.error(
+                f"Error reading report file {research.report_path}: {e}"
+            )
+            return jsonify({"error": "Error reading report file"}), 500
+
+        # Return the report data
+        return jsonify(
+            {
+                "content": content,
+                "metadata": {
+                    "query": research.query,
+                    "mode": research.mode.value if research.mode else None,
+                    "created_at": research.created_at.isoformat()
+                    if research.created_at
+                    else None,
+                    "completed_at": research.completed_at.isoformat()
+                    if research.completed_at
+                    else None,
+                    "report_path": research.report_path,
+                    **metadata,
+                },
+            }
+        )
+
+    except Exception as e:
+        logger.exception(f"Error getting research report: {str(e)}")
+        return jsonify({"error": "An internal error has occurred"}), 500
+    finally:
+        session.close()
 
 
 @research_bp.route("/api/research/<research_id>/status")
@@ -648,7 +833,8 @@ def get_research_status(research_id):
                 "suggestion": "Try again later or use a smaller query scope.",
             }
         elif (
-            "token limit" in error_msg.lower() or "context length" in error_msg.lower()
+            "token limit" in error_msg.lower()
+            or "context length" in error_msg.lower()
         ):
             error_type = "token_limit"
             error_info = {

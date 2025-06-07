@@ -9,9 +9,9 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
-from local_deep_research.api import quick_summary
+
 from ..datasets.base import DatasetRegistry
 from ..metrics import calculate_metrics, generate_report
 from ..runners import run_simpleqa_benchmark  # Keep for backward compatibility
@@ -134,9 +134,15 @@ class SimpleQAEvaluator(BaseBenchmarkEvaluator):
 
             # Set up output files
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            results_file = os.path.join(output_dir, f"simpleqa_{timestamp}_results.jsonl")
-            evaluation_file = os.path.join(output_dir, f"simpleqa_{timestamp}_evaluation.jsonl")
-            report_file = os.path.join(output_dir, f"simpleqa_{timestamp}_report.md")
+            results_file = os.path.join(
+                output_dir, f"simpleqa_{timestamp}_results.jsonl"
+            )
+            evaluation_file = os.path.join(
+                output_dir, f"simpleqa_{timestamp}_evaluation.jsonl"
+            )
+            report_file = os.path.join(
+                output_dir, f"simpleqa_{timestamp}_report.md"
+            )
 
             # Process each example
             results = []
@@ -146,7 +152,9 @@ class SimpleQAEvaluator(BaseBenchmarkEvaluator):
                 question = dataset_instance.get_question(example)
                 correct_answer = dataset_instance.get_answer(example)
 
-                logger.info(f"Processing {i + 1}/{len(examples)}: {question[:50]}...")
+                logger.info(
+                    f"Processing {i + 1}/{len(examples)}: {question[:50]}..."
+                )
 
                 try:
                     # Format query based on dataset type
@@ -158,18 +166,25 @@ class SimpleQAEvaluator(BaseBenchmarkEvaluator):
                     # Create search config from system_config
                     search_params = {
                         "iterations": system_config.get("iterations", 3),
-                        "questions_per_iteration": system_config.get("questions_per_iteration", 3),
-                        "search_tool": system_config.get("search_tool", "searxng"),
+                        "questions_per_iteration": system_config.get(
+                            "questions_per_iteration", 3
+                        ),
+                        "search_tool": system_config.get(
+                            "search_tool", "searxng"
+                        ),
                         # Note: search_strategy is stored in the config but not passed to quick_summary
                         # as it's not supported by the underlying API
                     }
 
                     # Get response from LDR
                     from local_deep_research.api import quick_summary
+
                     search_result = quick_summary(
                         query=formatted_query,
                         iterations=search_params.get("iterations"),
-                        questions_per_iteration=search_params.get("questions_per_iteration"),
+                        questions_per_iteration=search_params.get(
+                            "questions_per_iteration"
+                        ),
                         search_tool=search_params.get("search_tool"),
                     )
 
@@ -181,7 +196,10 @@ class SimpleQAEvaluator(BaseBenchmarkEvaluator):
 
                     # Extract structured answer
                     from ..graders import extract_answer_from_response
-                    extracted = extract_answer_from_response(response, "simpleqa")
+
+                    extracted = extract_answer_from_response(
+                        response, "simpleqa"
+                    )
 
                     # Format result
                     result = {
@@ -224,7 +242,8 @@ class SimpleQAEvaluator(BaseBenchmarkEvaluator):
 
             # Grade results
             from ..graders import grade_results
-            evaluation_results = grade_results(
+
+            grade_results(
                 results_file=results_file,
                 output_file=evaluation_file,
                 dataset_type="simpleqa",
@@ -244,9 +263,13 @@ class SimpleQAEvaluator(BaseBenchmarkEvaluator):
                     "Dataset": "SimpleQA",
                     "Examples": len(examples),
                     "Iterations": search_params.get("iterations", 3),
-                    "Questions per iteration": search_params.get("questions_per_iteration", 3),
+                    "Questions per iteration": search_params.get(
+                        "questions_per_iteration", 3
+                    ),
                     "Search tool": search_params.get("search_tool", "searxng"),
-                    "Search strategy": search_params.get("search_strategy", "source_based"),
+                    "Search strategy": search_params.get(
+                        "search_strategy", "source_based"
+                    ),
                 },
             )
 
