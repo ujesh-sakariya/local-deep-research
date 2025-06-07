@@ -1214,13 +1214,19 @@ def open_file_location():
         flash("No file path provided", "error")
         return redirect(url_for("settings.settings_page"))
 
-    # Get the directory containing the file
-    dir_path = os.path.dirname(os.path.abspath(file_path))
-
-    # Open the directory in the file explorer
     try:
+        # Validate the file path
+        file_path = os.path.abspath(file_path)
+        if not os.path.exists(file_path):
+            flash("File path does not exist", "error")
+            return redirect(url_for("settings.settings_page"))
+
+        # Get the directory containing the file
+        dir_path = os.path.dirname(file_path)
+
+        # Open the directory in the file explorer
         if platform.system() == "Windows":
-            subprocess.Popen(f'explorer "{dir_path}"')
+            subprocess.Popen(["explorer", dir_path])
         elif platform.system() == "Darwin":  # macOS
             subprocess.Popen(["open", dir_path])
         else:  # Linux
