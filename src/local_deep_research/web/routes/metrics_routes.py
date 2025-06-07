@@ -859,9 +859,9 @@ def api_pricing():
             }
         )
 
-    except Exception as e:
-        logger.error(f"Error getting pricing data: {e}")
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Error fetching pricing data")
+        return jsonify({"error": "Internal Server Error"}), 500
 
 
 @metrics_bp.route("/api/pricing/<model_name>")

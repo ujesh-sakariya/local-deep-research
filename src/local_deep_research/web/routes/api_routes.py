@@ -87,9 +87,11 @@ def api_start_research():
                 "research_id": research_id,
             }
         )
-    except Exception as e:
-        logger.error(f"Error starting research: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Error starting research")
+        return jsonify(
+            {"status": "error", "message": "Failed to start research"}, 500
+        )
 
 
 @api_bp.route("/status/<int:research_id>", methods=["GET"])
@@ -150,8 +152,12 @@ def api_terminate_research(research_id):
                 "result": result,
             }
         )
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Error terminating research")
+        return (
+            jsonify({"status": "error", "message": "Failed to stop research."}),
+            500,
+        )
 
 
 @api_bp.route("/resources/<int:research_id>", methods=["GET"])
@@ -162,8 +168,11 @@ def api_get_resources(research_id):
     try:
         resources = get_resources_for_research(research_id)
         return jsonify({"status": "success", "resources": resources})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Error getting resources for research")
+        return jsonify(
+            {"status": "error", "message": "Failed to get resources"}, 500
+        )
 
 
 @api_bp.route("/resources/<int:research_id>", methods=["POST"])
