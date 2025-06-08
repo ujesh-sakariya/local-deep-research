@@ -78,16 +78,7 @@ class LLMExplainer:
         if specific_explanation:
             return specific_explanation
         
-        # Priority 2: Try LLM for unknown/complex errors
-        if self.llm:
-            try:
-                llm_explanation = self._generate_llm_explanation(category, original_error, context)
-                if llm_explanation:
-                    return llm_explanation
-            except Exception as e:
-                logger.warning(f"Failed to generate LLM explanation: {e}")
-        
-        # Priority 3: Simple fallback
+        # Priority 2: Simple fallback (LLM explanation disabled for now)
         return "An unexpected error occurred during your research. Check the technical details below for more information."
     
     def _generate_llm_explanation(self, category: ErrorCategory, error_message: str, context: Dict[str, Any]) -> Optional[str]:
@@ -247,6 +238,20 @@ Keep it concise, helpful, and friendly. Avoid technical jargon.
             - Start Ollama: `ollama serve`
             - Check if LM Studio is running
             - Verify the service URL in settings
+            """.strip()
+        
+        # ThreadPoolExecutor max_workers issue
+        if "max_workers must be greater than 0" in error_message:
+            return """
+            **Threading Configuration Error**
+            
+            The system tried to create a thread pool with zero workers, which isn't allowed.
+            This typically happens when there are no search questions to process.
+            
+            **Quick fix:**
+            - Try running the research again
+            - Check your search configuration settings
+            - This is usually a temporary issue
             """.strip()
         
         return None
