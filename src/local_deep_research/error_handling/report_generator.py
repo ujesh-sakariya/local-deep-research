@@ -72,14 +72,7 @@ class ErrorReportGenerator:
         report_parts.append(f"\n**What happened:** {user_friendly_message}")
         report_parts.append(f"\n*For detailed error information, scroll down to the research logs and select \"Errors\" from the filter.*")
         
-        # Add the explanation (either template-based or LLM-generated)
-        if explanation and explanation.strip():
-            report_parts.append(f"\n## Understanding the Error\n")
-            report_parts.append(explanation)
-            
-        # Add quick tip if available
-        if quick_tip:
-            report_parts.append(f"\n{quick_tip}")
+        # Skip explanation section for now (too verbose/unhelpful)
         
         # Support links - moved up for better visibility
         report_parts.append(f"\n## 💬 Get Help")
