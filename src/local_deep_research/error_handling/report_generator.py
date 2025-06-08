@@ -44,49 +44,61 @@ class ErrorReportGenerator:
         Returns:
             str: Formatted error report in Markdown
         """
-        # Analyze the error
-        context = {
-            "query": query,
-            "search_iterations": search_iterations,
-            "research_id": research_id,
-            "partial_results": partial_results
-        }
-        
-        if partial_results:
-            context.update(partial_results)
-        
-        error_analysis = self.error_reporter.analyze_error(error_message, context)
-        
-        # Build the simplified report
-        report_parts = []
-        
-        # Header with user-friendly error message and logs reference
-        user_friendly_message = self._make_error_user_friendly(error_message)
-        category = error_analysis.get("category")
-        category_title = error_analysis.get("title", "Error")
-        
-        report_parts.append(f"# ⚠️ Research Failed")
-        report_parts.append(f"\n**Error Type:** {category_title}")
-        report_parts.append(f"\n**What happened:** {user_friendly_message}")
-        report_parts.append(f"\n*For detailed error information, scroll down to the research logs and select \"Errors\" from the filter.*")
-        
-        # Skip explanation section for now (too verbose/unhelpful)
-        
-        # Support links - moved up for better visibility
-        report_parts.append(f"\n## 💬 Get Help")
-        report_parts.append("We're here to help you get this working:")
-        report_parts.append("- **Chat with the community:** [Discord #help-and-support](https://discord.gg/ttcqQeFcJ3)")
-        report_parts.append("- **Report bugs:** [GitHub Issues](https://github.com/LearningCircuit/local-deep-research/issues)")
-        report_parts.append("- **Join discussions:** [Reddit r/LocalDeepResearch](https://www.reddit.com/r/LocalDeepResearch/) *(checked less frequently)*")
-        
-        # Show partial results if available (in expandable section)
-        if error_analysis.get("has_partial_results"):
-            partial_content = self._format_partial_results(partial_results)
-            if partial_content:
-                report_parts.append(f"\n<details>\n<summary>📊 Partial Results Available</summary>\n\n{partial_content}\n</details>")
-        
-        
-        return "\n".join(report_parts)
+        try:
+            # Analyze the error
+            context = {
+                "query": query,
+                "search_iterations": search_iterations,
+                "research_id": research_id,
+                "partial_results": partial_results
+            }
+            
+            if partial_results:
+                context.update(partial_results)
+            
+            error_analysis = self.error_reporter.analyze_error(error_message, context)
+            
+            # Build the simplified report
+            report_parts = []
+            
+            # Header with user-friendly error message and logs reference
+            user_friendly_message = self._make_error_user_friendly(error_message)
+            category = error_analysis.get("category")
+            category_title = error_analysis.get("title", "Error")
+            
+            report_parts.append(f"# ⚠️ Research Failed")
+            report_parts.append(f"\n**Error Type:** {category_title}")
+            report_parts.append(f"\n**What happened:** {user_friendly_message}")
+            report_parts.append(f"\n*For detailed error information, scroll down to the research logs and select \"Errors\" from the filter.*")
+            
+            # Support links - moved up for better visibility
+            report_parts.append(f"\n## 💬 Get Help")
+            report_parts.append("We're here to help you get this working:")
+            report_parts.append("- **Chat with the community:** [Discord #help-and-support](https://discord.gg/ttcqQeFcJ3)")
+            report_parts.append("- **Report bugs:** [GitHub Issues](https://github.com/LearningCircuit/local-deep-research/issues)")
+            report_parts.append("- **Join discussions:** [Reddit r/LocalDeepResearch](https://www.reddit.com/r/LocalDeepResearch/) *(checked less frequently)*")
+            
+            # Show partial results if available (in expandable section)
+            if error_analysis.get("has_partial_results"):
+                partial_content = self._format_partial_results(partial_results)
+                if partial_content:
+                    report_parts.append(f"\n<details>\n<summary>📊 Partial Results Available</summary>\n\n{partial_content}\n</details>")
+            
+            return "\n".join(report_parts)
+            
+        except Exception as e:
+            # Fallback: always return something, even if error report generation fails
+            logger.exception(f"Failed to generate error report: {e}")
+            return f"""# ⚠️ Research Failed
+
+**What happened:** {error_message}
+
+## 💬 Get Help
+We're here to help you get this working:
+- **Chat with the community:** [Discord #help-and-support](https://discord.gg/ttcqQeFcJ3)
+- **Report bugs:** [GitHub Issues](https://github.com/LearningCircuit/local-deep-research/issues)
+
+*Note: Error report generation failed - showing basic error information.*"""
     
     def _format_partial_results(self, partial_results: Optional[Dict[str, Any]]) -> str:
         """
