@@ -8,6 +8,10 @@ on:
     branches:
       - 'main'
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   version-check:
     runs-on: ubuntu-latest
@@ -17,6 +21,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -55,7 +60,7 @@ jobs:
             git commit -m "chore: auto-bump version to $new_version"
 
             # Push to the PR branch
-            git push origin HEAD:${{ github.head_ref }}
+            git push origin ${{ github.head_ref }}
 
             echo "Version automatically bumped to $new_version"
           else
