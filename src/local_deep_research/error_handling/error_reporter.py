@@ -39,6 +39,7 @@ class ErrorReporter:
                 r"Ollama.*not available",
                 r"API key.*invalid",
                 r"Authentication.*error",
+                r"max_workers must be greater than 0",
             ],
             ErrorCategory.SEARCH_ERROR: [
                 r"Search.*failed",
@@ -91,7 +92,7 @@ class ErrorReporter:
         """
         titles = {
             ErrorCategory.CONNECTION_ERROR: "Connection Issue",
-            ErrorCategory.MODEL_ERROR: "Model Configuration Problem",
+            ErrorCategory.MODEL_ERROR: "LLM Service Error",
             ErrorCategory.SEARCH_ERROR: "Search Service Error",
             ErrorCategory.SYNTHESIS_ERROR: "Report Generation Error",
             ErrorCategory.FILE_ERROR: "File System Error",
