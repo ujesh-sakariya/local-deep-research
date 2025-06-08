@@ -16,6 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -52,7 +53,9 @@ jobs:
             # Commit the version bump
             git add src/local_deep_research/__version__.py
             git commit -m "chore: auto-bump version to $new_version"
-            git push
+
+            # Push to the PR branch
+            git push origin HEAD:${{ github.head_ref }}
 
             echo "Version automatically bumped to $new_version"
           else
