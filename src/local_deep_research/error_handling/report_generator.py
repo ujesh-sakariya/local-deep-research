@@ -7,7 +7,6 @@ from typing import Dict, Any, Optional, List
 from loguru import logger
 
 from .error_reporter import ErrorReporter, ErrorCategory
-from .llm_explainer import LLMExplainer
 
 
 class ErrorReportGenerator:
@@ -20,10 +19,9 @@ class ErrorReportGenerator:
         Initialize error report generator
         
         Args:
-            llm: Optional LLM instance for generating explanations
+            llm: Optional LLM instance (unused, kept for compatibility)
         """
         self.error_reporter = ErrorReporter()
-        self.llm_explainer = LLMExplainer(llm)
     
     def generate_error_report(
         self, 
@@ -58,9 +56,6 @@ class ErrorReportGenerator:
             context.update(partial_results)
         
         error_analysis = self.error_reporter.analyze_error(error_message, context)
-        
-        # Generate explanation (simplified)
-        explanation = self.llm_explainer.generate_explanation(error_analysis)
         
         # Build the simplified report
         report_parts = []
@@ -334,7 +329,6 @@ class ErrorReportGenerator:
             "title": error_analysis["title"],
             "category": error_analysis["category"].value,
             "severity": error_analysis["severity"],
-            "quick_fix": self.llm_explainer.generate_quick_tip(error_analysis["category"]),
             "recoverable": error_analysis["recoverable"]
         }
     
