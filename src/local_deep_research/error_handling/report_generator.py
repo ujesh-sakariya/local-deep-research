@@ -85,9 +85,6 @@ class ErrorReportGenerator:
             if partial_content:
                 report_parts.append(f"\n<details>\n<summary>📊 Partial Results Available</summary>\n\n{partial_content}\n</details>")
         
-        # Technical error (collapsed)
-        if user_friendly_message != error_message:
-            report_parts.append(f"\n<details>\n<summary>🔧 Technical Details</summary>\n\n**Original Error:**\n```\n{error_message}\n```\n</details>")
         
         return "\n".join(report_parts)
     
@@ -144,46 +141,6 @@ class ErrorReportGenerator:
             formatted_parts.append("*Note: The above results were successfully collected before the error occurred.*")
         
         return "\n".join(formatted_parts) if formatted_parts else ""
-    
-    def _extract_stack_trace(self, error_message: str) -> Optional[str]:
-        """
-        Extract stack trace from error message if present
-        
-        Args:
-            error_message: The error message
-            
-        Returns:
-            str: Stack trace if found, None otherwise
-        """
-        # Look for common stack trace patterns
-        lines = error_message.split('\n')
-        stack_lines = []
-        in_stack = False
-        
-        for line in lines:
-            # Common stack trace indicators
-            if any(indicator in line.lower() for indicator in [
-                'traceback', 'stack trace', 'at ', 'file "', 
-                'line ', 'error:', 'exception:', 'caused by:'
-            ]):
-                in_stack = True
-                stack_lines.append(line)
-            elif in_stack and line.strip():
-                # Continue collecting stack trace lines
-                if line.startswith('  ') or 'at ' in line or 'File "' in line:
-                    stack_lines.append(line)
-                elif not line.strip():
-                    # Empty line might still be part of stack
-                    stack_lines.append(line)
-                else:
-                    # Looks like end of stack trace
-                    break
-        
-        # Return stack trace if we found a substantial one
-        if len(stack_lines) > 1:
-            return '\n'.join(stack_lines)
-        
-        return None
     
     def _get_technical_context(self, error_analysis: Dict[str, Any], partial_results: Optional[Dict[str, Any]]) -> str:
         """
