@@ -29,6 +29,7 @@ jobs:
           python-version: '3.13.2'
 
       - name: Check and auto-bump version
+        if: "!contains(github.event.head_commit.message, 'chore: auto-bump version')"
         run: |
           if ! git diff origin/${{ github.base_ref }}..HEAD -G"__version__" | grep -E '\+.*__version__.*='; then
             echo "Version not updated. Auto-bumping patch version..."
@@ -57,7 +58,7 @@ jobs:
 
             # Commit the version bump
             git add src/local_deep_research/__version__.py
-            git commit -m "chore: auto-bump version to $new_version"
+            git commit -m "chore: auto-bump version to $new_version [skip ci]"
 
             # Push to the PR branch
             git push origin ${{ github.head_ref }}
