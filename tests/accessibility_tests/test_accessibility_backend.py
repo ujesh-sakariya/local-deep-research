@@ -138,15 +138,16 @@ class TestHTMLAccessibility:
         """Test that keyboard hint text is present"""
         soup = research_page_html
 
-        hint_container = soup.find(class_="keyboard-hint")
-        assert hint_container is not None, "Should have keyboard hint container"
+        hint_container = soup.find(class_="search-hints")
+        assert hint_container is not None, "Should have search hints container"
 
-        hint_text = hint_container.find(class_="hint-text")
-        assert hint_text is not None, "Should have hint text element"
+        hint_texts = hint_container.find_all(class_="hint-text")
+        assert len(hint_texts) >= 2, "Should have at least 2 hint text elements"
 
-        hint_content = hint_text.get_text()
-        assert "Enter to search" in hint_content, "Should mention Enter key"
-        assert "Shift+Enter for new line" in hint_content, (
+        # Get all hint text content
+        all_hints = " ".join([hint.get_text() for hint in hint_texts])
+        assert "Enter to search" in all_hints, "Should mention Enter key"
+        assert "Shift+Enter for new line" in all_hints, (
             "Should mention Shift+Enter for new line"
         )
 
