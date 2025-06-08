@@ -79,6 +79,9 @@ class ErrorReportGenerator:
             report_parts.append("\n## 💬 Get Help")
             report_parts.append("We're here to help you get this working:")
             report_parts.append(
+                "- **Documentation & guides:** [Wiki](https://github.com/LearningCircuit/local-deep-research/wiki)"
+            )
+            report_parts.append(
                 "- **Chat with the community:** [Discord #help-and-support](https://discord.gg/ttcqQeFcJ3)"
             )
             report_parts.append(
@@ -107,6 +110,7 @@ class ErrorReportGenerator:
 
 ## 💬 Get Help
 We're here to help you get this working:
+- **Documentation & guides:** [Wiki](https://github.com/LearningCircuit/local-deep-research/wiki)
 - **Chat with the community:** [Discord #help-and-support](https://discord.gg/ttcqQeFcJ3)
 - **Report bugs:** [GitHub Issues](https://github.com/LearningCircuit/local-deep-research/issues)
 
