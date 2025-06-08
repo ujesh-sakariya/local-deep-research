@@ -10,6 +10,7 @@ from loguru import logger
 
 class ErrorCategory(Enum):
     """Categories of errors that can occur during research"""
+
     CONNECTION_ERROR = "connection_error"
     MODEL_ERROR = "model_error"
     SEARCH_ERROR = "search_error"
@@ -22,7 +23,7 @@ class ErrorReporter:
     """
     Analyzes and categorizes errors to provide better user feedback
     """
-    
+
     def __init__(self):
         self.error_patterns = {
             ErrorCategory.CONNECTION_ERROR: [
@@ -57,36 +58,38 @@ class ErrorReporter:
                 r"File.*not found",
                 r"Cannot write.*file",
                 r"Disk.*full",
-            ]
+            ],
         }
-    
+
     def categorize_error(self, error_message: str) -> ErrorCategory:
         """
         Categorize an error based on its message
-        
+
         Args:
             error_message: The error message to categorize
-            
+
         Returns:
             ErrorCategory: The categorized error type
         """
         error_message = str(error_message).lower()
-        
+
         for category, patterns in self.error_patterns.items():
             for pattern in patterns:
                 if re.search(pattern.lower(), error_message):
-                    logger.debug(f"Categorized error as {category.value}: {pattern}")
+                    logger.debug(
+                        f"Categorized error as {category.value}: {pattern}"
+                    )
                     return category
-        
+
         return ErrorCategory.UNKNOWN_ERROR
-    
+
     def get_user_friendly_title(self, category: ErrorCategory) -> str:
         """
         Get a user-friendly title for an error category
-        
+
         Args:
             category: The error category
-            
+
         Returns:
             str: User-friendly title
         """
@@ -99,14 +102,14 @@ class ErrorReporter:
             ErrorCategory.UNKNOWN_ERROR: "Unexpected Error",
         }
         return titles.get(category, "Error")
-    
+
     def get_suggested_actions(self, category: ErrorCategory) -> list:
         """
         Get suggested actions for resolving an error
-        
+
         Args:
             category: The error category
-            
+
         Returns:
             list: List of suggested actions
         """
@@ -149,20 +152,22 @@ class ErrorReporter:
             ],
         }
         return suggestions.get(category, ["Check the logs for more details"])
-    
-    def analyze_error(self, error_message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+
+    def analyze_error(
+        self, error_message: str, context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Perform comprehensive error analysis
-        
+
         Args:
             error_message: The error message to analyze
             context: Optional context information
-            
+
         Returns:
             dict: Comprehensive error analysis
         """
         category = self.categorize_error(error_message)
-        
+
         analysis = {
             "category": category,
             "title": self.get_user_friendly_title(category),
@@ -171,30 +176,30 @@ class ErrorReporter:
             "severity": self._determine_severity(category),
             "recoverable": self._is_recoverable(category),
         }
-        
+
         # Add context-specific information
         if context:
             analysis["context"] = context
             analysis["has_partial_results"] = bool(
-                context.get("findings") or 
-                context.get("current_knowledge") or 
-                context.get("search_results")
+                context.get("findings")
+                or context.get("current_knowledge")
+                or context.get("search_results")
             )
-        
+
         return analysis
-    
+
     def _determine_severity(self, category: ErrorCategory) -> str:
         """Determine error severity level"""
         severity_map = {
             ErrorCategory.CONNECTION_ERROR: "high",
-            ErrorCategory.MODEL_ERROR: "high", 
+            ErrorCategory.MODEL_ERROR: "high",
             ErrorCategory.SEARCH_ERROR: "medium",
             ErrorCategory.SYNTHESIS_ERROR: "low",  # Can often show partial results
             ErrorCategory.FILE_ERROR: "medium",
             ErrorCategory.UNKNOWN_ERROR: "high",
         }
         return severity_map.get(category, "medium")
-    
+
     def _is_recoverable(self, category: ErrorCategory) -> bool:
         """Determine if error is recoverable with user action"""
         recoverable = {
