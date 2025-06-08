@@ -61,7 +61,7 @@ class LLMExplainer:
     
     def generate_explanation(self, error_analysis: Dict[str, Any]) -> str:
         """
-        Generate a helpful explanation for an error
+        Generate a helpful explanation for an error - Priority: specific patterns -> LLM -> category templates
         
         Args:
             error_analysis: Error analysis from ErrorReporter
@@ -73,7 +73,12 @@ class LLMExplainer:
         original_error = error_analysis.get("original_error", "")
         context = error_analysis.get("context", {})
         
-        # Try to use LLM for explanation if available
+        # Priority 1: Check for specific known error patterns first
+        specific_explanation = self._get_specific_error_explanation(original_error)
+        if specific_explanation:
+            return specific_explanation
+        
+        # Priority 2: Try LLM for unknown/complex errors
         if self.llm:
             try:
                 llm_explanation = self._generate_llm_explanation(category, original_error, context)
@@ -82,8 +87,8 @@ class LLMExplainer:
             except Exception as e:
                 logger.warning(f"Failed to generate LLM explanation: {e}")
         
-        # Fallback to template-based explanation
-        return self._get_template_explanation(category, error_analysis)
+        # Priority 3: Simple fallback
+        return "An unexpected error occurred during your research. Check the technical details below for more information."
     
     def _generate_llm_explanation(self, category: ErrorCategory, error_message: str, context: Dict[str, Any]) -> Optional[str]:
         """
@@ -98,19 +103,31 @@ class LLMExplainer:
             Optional[str]: LLM-generated explanation
         """
         try:
-            # Prepare prompt for LLM
+            # Prepare prompt for LLM with category context
+            category_hint = ""
+            if category:
+                category_hints = {
+                    ErrorCategory.CONNECTION_ERROR: "This appears to be a connection or network issue with the AI service",
+                    ErrorCategory.MODEL_ERROR: "This seems to be related to AI model configuration or availability", 
+                    ErrorCategory.SEARCH_ERROR: "This looks like an issue with the search functionality",
+                    ErrorCategory.SYNTHESIS_ERROR: "This appears to be a problem during report generation",
+                    ErrorCategory.FILE_ERROR: "This seems to be a file system or permissions issue",
+                    ErrorCategory.UNKNOWN_ERROR: "This is an unexpected error that needs analysis"
+                }
+                category_hint = category_hints.get(category, "")
+            
             prompt = f"""
 You are helping a user understand what went wrong with their research process. 
 Please provide a brief, friendly, and helpful explanation of this error.
 
-Error Category: {category.value}
+Error Type: {category_hint}
 Technical Error: {error_message}
-Context: {context}
+Research Context: {context}
 
 Please explain:
 1. What happened in simple terms
-2. Why this might have occurred
-3. That partial results may still be available
+2. Why this might have occurred  
+3. That partial results may still be available if applicable
 4. Reassurance that this can usually be fixed
 
 Keep it concise, helpful, and friendly. Avoid technical jargon.
