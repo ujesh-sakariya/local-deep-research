@@ -59,9 +59,8 @@ class ErrorReportGenerator:
         
         error_analysis = self.error_reporter.analyze_error(error_message, context)
         
-        # Generate explanation
+        # Generate explanation (simplified)
         explanation = self.llm_explainer.generate_explanation(error_analysis)
-        quick_tip = self.llm_explainer.generate_quick_tip(error_analysis["category"])
         
         # Build the simplified report
         report_parts = []
