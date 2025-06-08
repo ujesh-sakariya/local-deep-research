@@ -68,7 +68,11 @@ class ErrorReportGenerator:
         
         # Header with user-friendly error message and logs reference
         user_friendly_message = self._make_error_user_friendly(error_message)
+        category = error_analysis.get("category")
+        category_title = error_analysis.get("title", "Error")
+        
         report_parts.append(f"# ⚠️ Research Failed")
+        report_parts.append(f"\n**Error Type:** {category_title}")
         report_parts.append(f"\n**What happened:** {user_friendly_message}")
         report_parts.append(f"\n*For detailed error information, scroll down to the research logs and select \"Errors\" from the filter.*")
         
