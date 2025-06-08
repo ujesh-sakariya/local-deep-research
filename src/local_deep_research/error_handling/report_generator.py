@@ -85,7 +85,7 @@ class ErrorReportGenerator:
                 "- 💬 **Chat with the community:** [Discord #help-and-support](https://discord.gg/ttcqQeFcJ3)"
             )
             report_parts.append(
-                "- 🐛 **Report bugs:** [GitHub Issues](https://github.com/LearningCircuit/local-deep-research/issues)"
+                "- 🐛 **Report bugs or get help:** [GitHub Issues](https://github.com/LearningCircuit/local-deep-research/issues) *(don't hesitate to ask if you're stuck!)*"
             )
             report_parts.append(
                 "- 💭 **Join discussions:** [Reddit r/LocalDeepResearch](https://www.reddit.com/r/LocalDeepResearch/) *(checked less frequently)*"
@@ -112,7 +112,7 @@ class ErrorReportGenerator:
 We're here to help you get this working:
 - 📖 **Documentation & guides:** [Wiki](https://github.com/LearningCircuit/local-deep-research/wiki)
 - 💬 **Chat with the community:** [Discord #help-and-support](https://discord.gg/ttcqQeFcJ3)
-- 🐛 **Report bugs:** [GitHub Issues](https://github.com/LearningCircuit/local-deep-research/issues)
+- 🐛 **Report bugs or get help:** [GitHub Issues](https://github.com/LearningCircuit/local-deep-research/issues) *(don't hesitate to ask if you're stuck!)*
 
 *Note: Error report generation failed - showing basic error information.*"""
 
