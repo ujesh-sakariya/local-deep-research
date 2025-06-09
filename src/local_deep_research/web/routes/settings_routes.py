@@ -38,15 +38,8 @@ def calculate_warnings():
     warnings = []
 
     try:
-        # Get database session if in Flask context
-        db_session = None
-        try:
-            from flask import current_app
-
-            if hasattr(current_app, "db_session"):
-                db_session = current_app.db_session
-        except:
-            pass
+        # Get a fresh database session for safety
+        db_session = get_db_session()
 
         # Get current settings
         provider = get_setting("llm.provider", "ollama", db_session).lower()
@@ -54,7 +47,7 @@ def calculate_warnings():
             "llm.local_context_window_size", 4096, db_session
         )
 
-        logger.info(f"Starting warning calculation - provider={provider}")
+        logger.debug(f"Starting warning calculation - provider={provider}")
 
         # Get dismissal settings
         dismiss_high_context = get_setting(
@@ -85,9 +78,36 @@ def calculate_warnings():
                 }
             )
 
+        # Get additional warning settings
+        dismiss_model_mismatch = get_setting(
+            "app.warnings.dismiss_model_mismatch", False, db_session
+        )
+
+        # Get current strategy and model (these need to be passed from the frontend or retrieved differently)
+        # For now, we'll implement basic warnings that don't require form state
+
+        # Model mismatch warning (simplified - checking setting instead of form value)
+        current_model = get_setting("llm.model", "", db_session)
+        if (
+            current_model
+            and "70b" in current_model.lower()
+            and is_local_provider
+            and local_context > 8192
+            and not dismiss_model_mismatch
+        ):
+            warnings.append(
+                {
+                    "type": "model_mismatch",
+                    "icon": "🧠",
+                    "title": "Model & Context Warning",
+                    "message": f"Large model ({current_model}) with high context ({local_context:,}) may exceed VRAM. Consider reducing context size or upgrading GPU memory.",
+                    "dismissKey": "app.warnings.dismiss_model_mismatch",
+                }
+            )
+
         # SearXNG recommendation: more questions instead of more iterations
         search_engine = get_setting(
-            "search.tool", "duckduckgo", db_session
+            "search.tool", "wikipedia", db_session
         ).lower()
         iterations = int(get_setting("search.iterations", 2, db_session))
         questions_per_iteration = int(
@@ -1695,6 +1715,17 @@ def fix_corrupted_settings():
             ),
             500,
         )
+
+
+@settings_bp.route("/api/warnings", methods=["GET"])
+def api_get_warnings():
+    """Get current warnings based on settings"""
+    try:
+        warnings = calculate_warnings()
+        return jsonify({"warnings": warnings})
+    except Exception as e:
+        logger.exception("Error getting warnings")
+        return jsonify({"error": str(e)}), 500
 
 
 @settings_bp.route("/api/ollama-status", methods=["GET"])

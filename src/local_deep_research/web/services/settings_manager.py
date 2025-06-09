@@ -623,5 +623,5 @@ class SettingsManager:
             )
 
         except Exception as e:
-            logger.warning(f"Failed to emit settings change event: {e}")
+            logger.exception(f"Failed to emit settings change event: {e}")
             # Don't let WebSocket emission failures break settings saving

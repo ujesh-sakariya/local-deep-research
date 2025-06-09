@@ -265,13 +265,13 @@ def get_llm(
         # Use 80% of context window to leave room for prompts
         if context_window_size is not None:
             max_tokens = min(
-                int(get_db_setting("llm.max_tokens", 30000)),
+                int(get_db_setting("llm.max_tokens", 100000)),
                 int(context_window_size * 0.8),
             )
             common_params["max_tokens"] = max_tokens
         else:
             # Unrestricted context: use provider's default max_tokens
-            max_tokens = int(get_db_setting("llm.max_tokens", 30000))
+            max_tokens = int(get_db_setting("llm.max_tokens", 100000))
             common_params["max_tokens"] = max_tokens
 
     # Handle different providers
@@ -500,7 +500,7 @@ def get_llm(
             llm = LlamaCppClient(
                 server_url=server_url,
                 temperature=temperature,
-                max_tokens=get_db_setting("llm.max_tokens", 30000),
+                max_tokens=get_db_setting("llm.max_tokens", 8192),
             )
         else:
             # Use direct model loading (existing code)

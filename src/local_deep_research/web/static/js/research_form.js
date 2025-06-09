@@ -200,13 +200,13 @@ function refetchSettingsAndUpdateWarnings() {
             if (data && data.status === 'success' && data.settings) {
                 // Update global settings cache
                 globalSettings = data.settings;
-                // Recheck warnings with fresh settings
-                setTimeout(checkAndDisplayWarnings, 100);
             }
+            // Recheck warnings from backend (not from cached settings)
+            setTimeout(checkAndDisplayWarnings, 100);
         })
         .catch(error => {
             console.warn('Error refetching settings:', error);
-            // Fallback to checking warnings with current settings
+            // Still try to check warnings from backend
             setTimeout(checkAndDisplayWarnings, 100);
         });
 }
@@ -216,111 +216,31 @@ window.refetchSettingsAndUpdateWarnings = refetchSettingsAndUpdateWarnings;
 window.displayWarnings = displayWarnings;
 
 /**
- * Check warning conditions and display warnings
+ * Check warning conditions by fetching from backend
  */
 function checkAndDisplayWarnings() {
-    console.log('Checking warning conditions...');
+    console.log('Checking warning conditions from backend...');
 
-    // Get provider from database settings (source of truth)
-    const provider = getSetting('llm.provider', 'ollama').toLowerCase();
-    const strategy = getCurrentStrategy();
-    const model = getCurrentModel();
-
-    // Debug logging
-    console.log('Current values:', { provider, strategy, model });
-
-    // Get context settings
-    const localContext = getSetting('llm.local_context_window_size', 4096);
-    const cloudUnrestricted = getSetting('llm.context_window_unrestricted', true);
-    const cloudContext = getSetting('llm.context_window_size', 128000);
-
-    console.log('Context settings:', { localContext, cloudUnrestricted, cloudContext });
-
-    // Get dismissal settings
-    const dismissHighContext = getSetting('app.warnings.dismiss_high_context', false);
-    const dismissLowContextFocused = getSetting('app.warnings.dismiss_low_context_focused', false);
-    const dismissModelMismatch = getSetting('app.warnings.dismiss_model_mismatch', false);
-
-    const warnings = [];
-
-    // Check warning conditions
-    const isLocalProvider = provider === 'ollama' || provider === 'llamacpp' || provider === 'lmstudio' || provider === 'vllm';
-
-    console.log('Provider analysis:', {
-        rawProvider: provider,
-        isLocal: isLocalProvider,
-        cloudUnrestricted,
-        allSettings: Object.keys(globalSettings).filter(k => k.includes('context') || k.includes('warning'))
-    });
-
-    // Get effective context size based on provider type
-    let effectiveContext;
-    if (isLocalProvider) {
-        effectiveContext = localContext;
-    } else {
-        // Cloud provider: check if unrestricted or has limit
-        if (cloudUnrestricted) {
-            effectiveContext = 200000; // Assume high context for unrestricted cloud
-        } else {
-            effectiveContext = cloudContext;
-        }
-    }
-
-    console.log('Effective context for warnings:', effectiveContext, 'Provider type:', isLocalProvider ? 'local' : 'cloud');
-
-    if (isLocalProvider && localContext > 8192 && !dismissHighContext) {
-        warnings.push({
-            type: 'high_context',
-            icon: '⚠️',
-            title: 'High Context Warning',
-            message: `Context size (${localContext.toLocaleString()} tokens) may cause memory issues with ${provider}. Increase VRAM or reduce context size if you experience slowdowns.`,
-            dismissKey: 'app.warnings.dismiss_high_context'
+    // Get warnings from backend API instead of calculating locally
+    fetch('/research/settings/api/warnings')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to fetch warnings');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.warnings) {
+                displayWarnings(data.warnings);
+            } else {
+                displayWarnings([]);
+            }
+        })
+        .catch(error => {
+            console.warn('Error fetching warnings from backend:', error);
+            // Clear warnings on error
+            displayWarnings([]);
         });
-    }
-
-    if (strategy === 'focused-iteration' && effectiveContext < 32000 && !dismissLowContextFocused) {
-        const providerType = isLocalProvider ? 'local' : 'cloud';
-        const contextSource = isLocalProvider ? 'local context setting' : (cloudUnrestricted ? 'unrestricted cloud context' : 'cloud context setting');
-
-        warnings.push({
-            type: 'low_context_focused',
-            icon: '💡',
-            title: 'Strategy Recommendation',
-            message: `Focused iteration works best with 32k+ context tokens. Current ${providerType} provider has ${effectiveContext.toLocaleString()} tokens (${contextSource}). Consider increasing context size or using source-based strategy.`,
-            dismissKey: 'app.warnings.dismiss_low_context_focused'
-        });
-    }
-
-    if (model && model.includes('70b') && isLocalProvider && localContext > 8192 && !dismissModelMismatch) {
-        warnings.push({
-            type: 'model_mismatch',
-            icon: '🧠',
-            title: 'Model & Context Warning',
-            message: `Large model (${model}) with high context (${localContext.toLocaleString()}) may exceed VRAM. Consider reducing context size or upgrading GPU memory.`,
-            dismissKey: 'app.warnings.dismiss_model_mismatch'
-        });
-    }
-
-    // SearXNG recommendation: more questions instead of more iterations
-    const searchEngine = getSetting('search.tool', 'duckduckgo').toLowerCase();
-    const iterations = parseInt(getSetting('search.iterations', 2));
-    const questionsPerIteration = parseInt(getSetting('search.questions_per_iteration', 3));
-    const dismissSearxngRecommendation = getSetting('app.warnings.dismiss_searxng_recommendation', false);
-
-    console.log('SearXNG check:', { searchEngine, iterations, questionsPerIteration, dismissSearxngRecommendation });
-
-    if (searchEngine === 'searxng' && iterations > 2 && !dismissSearxngRecommendation) {
-        warnings.push({
-            type: 'searxng_recommendation',
-            icon: '💡',
-            title: 'SearXNG Optimization Tip',
-            message: `For SearXNG, we recommend using more questions per iteration (${questionsPerIteration} → 10) instead of more iterations (${iterations}). SearXNG handles multiple questions efficiently in a single iteration.`,
-            dismissKey: 'app.warnings.dismiss_searxng_recommendation'
-        });
-    }
-
-    // Display warnings
-    displayWarnings(warnings);
 }
 
 /**
@@ -414,27 +334,8 @@ function dismissWarning(dismissKey) {
 }
 
 /**
- * Helper functions to get current form values
+ * Helper function to get settings
  */
-function getCurrentProvider() {
-    const providerSelect = document.getElementById('model_provider');
-    if (providerSelect && providerSelect.value) {
-        return providerSelect.value.toLowerCase();
-    }
-    return 'ollama';
-}
-
-function getCurrentStrategy() {
-    const strategySelect = document.getElementById('strategy');
-    return strategySelect ? strategySelect.value : 'source-based';
-}
-
-function getCurrentModel() {
-    // Try to get from model dropdown display
-    const modelDisplay = document.querySelector('.model-dropdown .dropdown-display');
-    return modelDisplay ? modelDisplay.textContent.trim() : '';
-}
-
 function getSetting(key, defaultValue) {
     return globalSettings[key] ? globalSettings[key].value : defaultValue;
 }
