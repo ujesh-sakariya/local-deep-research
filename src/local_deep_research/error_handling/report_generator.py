@@ -296,10 +296,99 @@ We're here to help you get this working:
         # Dictionary of technical errors to user-friendly messages
         error_replacements = {
             "max_workers must be greater than 0": (
-                "This is typically an issue with the LLM not being available."
+                "The LLM failed to generate search questions. This usually means the LLM service isn't responding properly.\n\n"
+                "**Try this:**\n"
+                "- Check if your LLM service (Ollama/LM Studio) is running\n"
+                "- Restart the LLM service\n"
+                "- Try a different model"
             ),
             "POST predict.*EOF": (
-                "Lost connection to Ollama. This usually means Ollama stopped responding or there's a network issue. Try restarting Ollama or checking if it's still running."
+                "Lost connection to Ollama. This usually means Ollama stopped responding or there's a network issue.\n\n"
+                "**Try this:**\n"
+                "- Restart Ollama: `ollama serve`\n"
+                "- Check if Ollama is still running: `ps aux | grep ollama`\n"
+                "- Try a different port if 11434 is in use"
+            ),
+            "HTTP error 404.*research results": (
+                "The research completed but the results can't be displayed. The files were likely generated successfully.\n\n"
+                "**Try this:**\n"
+                "- Check the `research_outputs` folder for your report\n"
+                "- Ensure the folder has proper read/write permissions\n"
+                "- Restart the LDR web interface"
+            ),
+            "Connection refused|\\[Errno 111\\]": (
+                "Cannot connect to the LLM service. The service might not be running or is using a different address.\n\n"
+                "**Try this:**\n"
+                "- Start your LLM service (Ollama: `ollama serve`, LM Studio: launch the app)\n"
+                "- **Docker on Mac/Windows:** Change URL from `http://localhost:1234` to `http://host.docker.internal:1234`\n"
+                "- **Docker on Linux:** Use your host IP instead of localhost (find with `hostname -I`)\n"
+                "- Check the service URL in settings matches where your LLM is running\n"
+                "- Verify the port number is correct (Ollama: 11434, LM Studio: 1234)"
+            ),
+            "The search is longer than 256 characters": (
+                "Your search query is too long for GitHub's API (max 256 characters).\n\n"
+                "**Try this:**\n"
+                "- Shorten your research query\n"
+                "- Use a different search engine (DuckDuckGo, Searx, etc.)\n"
+                "- Break your research into smaller, focused queries"
+            ),
+            "No module named.*local_deep_research": (
+                "Installation issue detected. The package isn't properly installed.\n\n"
+                "**Try this:**\n"
+                "- Reinstall: `pip install -e .` from the project directory\n"
+                "- Check you're using the right Python environment\n"
+                "- For Docker users: rebuild the container"
+            ),
+            "Failed to create search engine|could not be found": (
+                "Search engine configuration problem.\n\n"
+                "**Try this:**\n"
+                "- Use the default search engine (auto)\n"
+                "- Check search engine settings in Advanced Options\n"
+                "- Ensure required API keys are set for external search engines"
+            ),
+            "TypeError.*Context.*Size|'<' not supported between": (
+                "Model configuration issue. The context size setting might not be compatible with your model.\n\n"
+                "**Try this:**\n"
+                "- Check your model's maximum context size\n"
+                "- Leave context size settings at default\n"
+                "- Try a different model"
+            ),
+            "Model.*not found in Ollama": (
+                "The specified model isn't available in Ollama.\n\n"
+                "**Try this:**\n"
+                "- Check available models: `ollama list`\n"
+                "- Pull the model: `ollama pull <model-name>`\n"
+                "- Use the exact model name shown in `ollama list` (e.g., 'gemma2:9b' not 'gemma:latest')"
+            ),
+            "No auth credentials found|401.*API key": (
+                "API key is missing or incorrectly configured.\n\n"
+                "**Try this:**\n"
+                "- Set API key in the web UI settings (not in .env files)\n"
+                "- Go to Settings → Advanced → enter your API key\n"
+                "- For custom endpoints, ensure the key format matches what your provider expects"
+            ),
+            "Attempt to write readonly database": (
+                "Permission issue with the database file.\n\n"
+                "**Try this:**\n"
+                "- On Windows: Run as Administrator\n"
+                "- On Linux/Mac: Check folder permissions\n"
+                "- Delete and recreate the database file if corrupted"
+            ),
+            "Invalid value.*SearXNG|database.*locked": (
+                "SearXNG configuration or rate limiting issue.\n\n"
+                "**Try this:**\n"
+                "- Keep 'Search snippets only' enabled (don't turn it off)\n"
+                "- Restart SearXNG: `docker restart searxng`\n"
+                "- If rate limited, wait a few minutes or use a VPN"
+            ),
+            "host.*localhost.*Docker|127\\.0\\.0\\.1.*Docker|localhost.*1234.*Docker|LM.*Studio.*Docker.*Mac": (
+                "Docker networking issue - can't connect to services on host.\n\n"
+                "**Try this:**\n"
+                "- **On Mac/Windows Docker:** Replace 'localhost' or '127.0.0.1' with 'host.docker.internal'\n"
+                "- **On Linux Docker:** Use your host's actual IP address (find with `hostname -I`)\n"
+                "- **Example:** Change `http://localhost:1234` to `http://host.docker.internal:1234`\n"
+                "- Ensure the service port isn't blocked by firewall\n"
+                "- Alternative: Use host networking mode (see wiki for setup)"
             ),
         }
 
