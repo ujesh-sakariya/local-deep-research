@@ -17,6 +17,7 @@ from ...utilities.threading_utils import thread_context, thread_with_app_context
 from ..database.models import ResearchStrategy, ResearchHistory
 from ..models.database import calculate_duration
 from .socket_service import SocketIOService
+from ...error_handling.report_generator import ErrorReportGenerator
 
 # Output directory for research results
 _PROJECT_ROOT = Path(__file__).parents[4]
@@ -657,8 +658,40 @@ def run_research_process(
                 )
 
                 try:
-                    # Get the synthesized content from the LLM directly
-                    clean_markdown = raw_formatted_findings
+                    # Check if we have an error in the findings and use enhanced error handling
+                    if isinstance(
+                        raw_formatted_findings, str
+                    ) and raw_formatted_findings.startswith("Error:"):
+                        logger.info(
+                            "Generating enhanced error report using ErrorReportGenerator"
+                        )
+
+                        # Get LLM for error explanation if available
+                        try:
+                            llm = get_llm(research_id=research_id)
+                        except Exception:
+                            llm = None
+                            logger.warning(
+                                "Could not get LLM for error explanation"
+                            )
+
+                        # Generate comprehensive error report
+                        error_generator = ErrorReportGenerator(llm)
+                        clean_markdown = error_generator.generate_error_report(
+                            error_message=raw_formatted_findings,
+                            query=query,
+                            partial_results=results,
+                            search_iterations=results.get("iterations", 0),
+                            research_id=research_id,
+                        )
+
+                        logger.info(
+                            "Generated enhanced error report with %d characters",
+                            len(clean_markdown),
+                        )
+                    else:
+                        # Get the synthesized content from the LLM directly
+                        clean_markdown = raw_formatted_findings
 
                     # Extract all sources from findings to add them to the summary
                     all_links = []
@@ -878,10 +911,77 @@ def run_research_process(
                     "solution": "Check API configuration and credentials."
                 }
 
+            # Generate enhanced error report for failed research
+            enhanced_report_content = None
+            try:
+                # Get LLM for error explanation if available
+                try:
+                    llm = get_llm(research_id=research_id)
+                except Exception:
+                    llm = None
+                    logger.warning(
+                        "Could not get LLM for error explanation in failure handler"
+                    )
+
+                # Get partial results if they exist
+                partial_results = results if "results" in locals() else None
+                search_iterations = (
+                    results.get("iterations", 0) if partial_results else 0
+                )
+
+                # Generate comprehensive error report
+                error_generator = ErrorReportGenerator(llm)
+                enhanced_report_content = error_generator.generate_error_report(
+                    error_message=f"Research failed: {str(e)}",
+                    query=query,
+                    partial_results=partial_results,
+                    search_iterations=search_iterations,
+                    research_id=research_id,
+                )
+
+                logger.info(
+                    "Generated enhanced error report for failed research (length: %d)",
+                    len(enhanced_report_content),
+                )
+
+                # Save enhanced error report as the actual report file
+                try:
+                    reports_folder = OUTPUT_DIR
+                    report_filename = f"research_{research_id}_error_report.md"
+                    report_path = reports_folder / report_filename
+
+                    with open(report_path, "w", encoding="utf-8") as f:
+                        f.write(enhanced_report_content)
+
+                    logger.info(
+                        "Saved enhanced error report to: %s", report_path
+                    )
+
+                    # Store the report path so it can be retrieved later
+                    report_path_to_save = str(
+                        report_path.relative_to(reports_folder.parent)
+                    )
+
+                except Exception as report_error:
+                    logger.exception(
+                        "Failed to save enhanced error report: %s", report_error
+                    )
+                    report_path_to_save = None
+
+            except Exception as error_gen_error:
+                logger.exception(
+                    "Failed to generate enhanced error report: %s",
+                    error_gen_error,
+                )
+                enhanced_report_content = None
+                report_path_to_save = None
+
             # Update metadata with more context about the error
             metadata = {"phase": "error", "error": user_friendly_error}
             if error_context:
                 metadata.update(error_context)
+            if enhanced_report_content:
+                metadata["has_enhanced_report"] = True
 
             # If we still have an active research record, update its log
             if research_id in active_research:
@@ -933,6 +1033,10 @@ def run_research_process(
                 research.completed_at = completed_at
                 research.duration_seconds = duration_seconds
                 research.metadata = metadata
+
+                # Add error report path if available
+                if "report_path_to_save" in locals() and report_path_to_save:
+                    research.report_path = report_path_to_save
 
                 db_session.commit()
 
