@@ -3,7 +3,7 @@ API module for Local Deep Research.
 Provides programmatic access to search and research capabilities.
 """
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
 from loguru import logger
 
@@ -84,6 +84,7 @@ def _init_search_system(
 
 def quick_summary(
     query: str,
+    research_id: Optional[Union[int, str]] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
     """
@@ -91,6 +92,7 @@ def quick_summary(
 
     Args:
         query: The research query to analyze
+        research_id: Optional research ID (int or UUID string) for tracking metrics
         **kwargs: Configuration for the search system. Will be forwarded to
             `_init_search_system()`.
 
@@ -103,7 +105,29 @@ def quick_summary(
     """
     logger.info("Generating quick summary for query: %s", query)
 
-    system = _init_search_system(**kwargs)
+    # Generate a research_id if none provided
+    if research_id is None:
+        import uuid
+
+        research_id = str(uuid.uuid4())
+        logger.debug(f"Generated research_id: {research_id}")
+
+    # Set search context with research_id
+    from ..metrics.search_tracker import set_search_context
+
+    search_context = {
+        "research_id": research_id,  # Pass UUID or integer directly
+        "research_query": query,
+        "research_mode": kwargs.get("research_mode", "quick"),
+        "research_phase": "init",
+        "search_iteration": 0,
+        "search_engine_selected": kwargs.get("search_tool"),
+    }
+    set_search_context(search_context)
+
+    # Remove research_mode from kwargs before passing to _init_search_system
+    init_kwargs = {k: v for k, v in kwargs.items() if k != "research_mode"}
+    system = _init_search_system(**init_kwargs)
 
     # Perform the search and analysis
     results = system.analyze_topic(query)

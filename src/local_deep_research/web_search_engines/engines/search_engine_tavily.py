@@ -2,7 +2,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-from langchain_community.tools import BraveSearch
+import requests
 from langchain_core.language_models import BaseLLM
 
 from ...config import search_config
@@ -12,8 +12,8 @@ from ..rate_limiting import RateLimitError
 logger = logging.getLogger(__name__)
 
 
-class BraveSearchEngine(BaseSearchEngine):
-    """Brave search engine implementation with two-phase approach"""
+class TavilySearchEngine(BaseSearchEngine):
+    """Tavily search engine implementation with two-phase approach"""
 
     def __init__(
         self,
@@ -23,26 +23,30 @@ class BraveSearchEngine(BaseSearchEngine):
         safe_search: bool = True,
         search_language: str = "English",
         api_key: Optional[str] = None,
-        language_code_mapping: Optional[Dict[str, str]] = None,
         llm: Optional[BaseLLM] = None,
         include_full_content: bool = True,
         max_filtered_results: Optional[int] = None,
+        search_depth: str = "basic",
+        include_domains: Optional[List[str]] = None,
+        exclude_domains: Optional[List[str]] = None,
         **kwargs,
     ):
         """
-        Initialize the Brave search engine.
+        Initialize the Tavily search engine.
 
         Args:
             max_results: Maximum number of search results
-            region: Region code for search results
-            time_period: Time period for search results
-            safe_search: Whether to enable safe search
-            search_language: Language for search results
-            api_key: Brave Search API key (can also be set in BRAVE_API_KEY env)
-            language_code_mapping: Mapping from language names to codes
+            region: Region code for search results (not used by Tavily currently)
+            time_period: Time period for search results (not used by Tavily currently)
+            safe_search: Whether to enable safe search (not used by Tavily currently)
+            search_language: Language for search results (not used by Tavily currently)
+            api_key: Tavily API key (can also be set in TAVILY_API_KEY env)
             llm: Language model for relevance filtering
             include_full_content: Whether to include full webpage content in results
             max_filtered_results: Maximum number of results to keep after filtering
+            search_depth: "basic" or "advanced" - controls search quality vs speed
+            include_domains: List of domains to include in search
+            exclude_domains: List of domains to exclude from search
             **kwargs: Additional parameters (ignored but accepted for compatibility)
         """
         # Initialize the BaseSearchEngine with LLM, max_filtered_results, and max_results
@@ -52,56 +56,28 @@ class BraveSearchEngine(BaseSearchEngine):
             max_results=max_results,
         )
         self.include_full_content = include_full_content
+        self.search_depth = search_depth
+        self.include_domains = include_domains or []
+        self.exclude_domains = exclude_domains or []
 
-        # Set up language code mapping
-        if language_code_mapping is None:
-            language_code_mapping = {
-                "english": "en",
-                "spanish": "es",
-                "chinese": "zh",
-                "hindi": "hi",
-                "french": "fr",
-                "arabic": "ar",
-                "bengali": "bn",
-                "portuguese": "pt",
-                "russian": "ru",
-            }
-
-        # Get API key - check params, env vars, or database
+        # Get API key - check params, database, or env vars
         from ...utilities.db_utils import get_db_setting
 
-        brave_api_key = api_key
-        if not brave_api_key:
-            brave_api_key = get_db_setting("search.engine.web.brave.api_key")
+        tavily_api_key = api_key
+        if not tavily_api_key:
+            tavily_api_key = get_db_setting("search.engine.web.tavily.api_key")
 
-        if not brave_api_key:
+        if not tavily_api_key:
+            tavily_api_key = os.environ.get("TAVILY_API_KEY")
+
+        if not tavily_api_key:
             raise ValueError(
-                "Brave API key not found. Please provide api_key parameter, set the BRAVE_API_KEY environment variable, or set it in the UI settings."
+                "Tavily API key not found. Please provide api_key parameter, "
+                "set it in the UI settings, or set TAVILY_API_KEY environment variable."
             )
 
-        # Get language code
-        language_code = language_code_mapping.get(search_language.lower(), "en")
-
-        # Convert time period format to Brave's format
-        brave_time_period = f"p{time_period}"
-
-        # Convert safe search to Brave's format
-        brave_safe_search = "moderate" if safe_search else "off"
-
-        # Initialize Brave Search
-        self.engine = BraveSearch.from_api_key(
-            api_key=brave_api_key,
-            search_kwargs={
-                "count": min(20, max_results),
-                "country": region.upper(),
-                "search_lang": language_code,
-                "safesearch": brave_safe_search,
-                "freshness": brave_time_period,
-            },
-        )
-
-        # Set user agent for Brave Search
-        os.environ["USER_AGENT"] = "Local Deep Research/1.0"
+        self.api_key = tavily_api_key
+        self.base_url = "https://api.tavily.com"
 
         # If full content is requested, initialize FullSearchResults
         if include_full_content:
@@ -109,14 +85,22 @@ class BraveSearchEngine(BaseSearchEngine):
             try:
                 from .full_search import FullSearchResults
 
+                # Create a simple wrapper for Tavily API calls
+                class TavilyWrapper:
+                    def __init__(self, parent):
+                        self.parent = parent
+
+                    def run(self, query):
+                        return self.parent._get_previews(query)
+
                 self.full_search = FullSearchResults(
                     llm=llm,
-                    web_search=self.engine,
+                    web_search=TavilyWrapper(self),
                     language=search_language,
                     max_results=max_results,
                     region=region,
                     time=time_period,
-                    safesearch=brave_safe_search,
+                    safesearch="moderate" if safe_search else "off",
                 )
             except ImportError:
                 logger.warning(
@@ -126,7 +110,7 @@ class BraveSearchEngine(BaseSearchEngine):
 
     def _get_previews(self, query: str) -> List[Dict[str, Any]]:
         """
-        Get preview information from Brave Search.
+        Get preview information from Tavily Search.
 
         Args:
             query: The search query
@@ -134,37 +118,63 @@ class BraveSearchEngine(BaseSearchEngine):
         Returns:
             List of preview dictionaries
         """
-        logger.info("Getting search results from Brave Search")
+        logger.info("Getting search results from Tavily")
 
         try:
-            # Get search results from Brave Search
-            raw_results = self.engine.run(query[:400])
+            # Prepare the request payload
+            payload = {
+                "api_key": self.api_key,
+                "query": query[:400],  # Limit query length
+                "search_depth": self.search_depth,
+                "max_results": min(
+                    20, self.max_results
+                ),  # Tavily has a max limit
+                "include_answer": False,  # We don't need the AI answer
+                "include_images": False,  # We don't need images
+                "include_raw_content": self.include_full_content,  # Get content if requested
+            }
 
-            # Parse results if they're in string format
-            if isinstance(raw_results, str):
-                try:
-                    import json
+            # Add domain filters if specified
+            if self.include_domains:
+                payload["include_domains"] = self.include_domains
+            if self.exclude_domains:
+                payload["exclude_domains"] = self.exclude_domains
 
-                    raw_results = json.loads(raw_results)
-                except json.JSONDecodeError:
-                    logger.error(
-                        "Error: Unable to parse BraveSearch response as JSON."
-                    )
-                    return []
+            # Make the API request
+            response = requests.post(
+                f"{self.base_url}/search",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=30,
+            )
+
+            # Check for errors
+            if response.status_code == 429:
+                raise RateLimitError(
+                    f"Tavily rate limit hit: {response.status_code} - {response.text}"
+                )
+
+            response.raise_for_status()
+
+            # Parse the response
+            data = response.json()
+            results = data.get("results", [])
 
             # Format results as previews
             previews = []
-            for i, result in enumerate(raw_results):
+            for i, result in enumerate(results):
                 preview = {
-                    "id": i,  # Use index as ID
+                    "id": result.get("url", str(i)),  # Use URL as ID
                     "title": result.get("title", ""),
-                    "link": result.get("link", ""),
-                    "snippet": result.get("snippet", ""),
-                    "displayed_link": result.get("link", ""),
+                    "link": result.get("url", ""),
+                    "snippet": result.get(
+                        "content", ""
+                    ),  # Tavily calls it "content"
+                    "displayed_link": result.get("url", ""),
                     "position": i,
                 }
 
-                # Store full Brave result for later
+                # Store full Tavily result for later
                 preview["_full_result"] = result
 
                 previews.append(preview)
@@ -174,21 +184,27 @@ class BraveSearchEngine(BaseSearchEngine):
 
             return previews
 
-        except Exception as e:
+        except RateLimitError:
+            raise  # Re-raise rate limit errors
+        except requests.exceptions.RequestException as e:
             error_msg = str(e)
-            logger.error(f"Error getting Brave Search results: {error_msg}")
+            logger.error(f"Error getting Tavily results: {error_msg}")
 
-            # Check for rate limit patterns
-            if (
-                "429" in error_msg
-                or "too many requests" in error_msg.lower()
-                or "rate limit" in error_msg.lower()
-                or "quota" in error_msg.lower()
+            # Check for rate limit patterns in error message
+            if any(
+                pattern in error_msg.lower()
+                for pattern in [
+                    "429",
+                    "rate limit",
+                    "quota",
+                    "too many requests",
+                ]
             ):
-                raise RateLimitError(
-                    f"Brave Search rate limit hit: {error_msg}"
-                )
+                raise RateLimitError(f"Tavily rate limit hit: {error_msg}")
 
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error getting Tavily results: {e}")
             return []
 
     def _get_full_content(
@@ -196,14 +212,14 @@ class BraveSearchEngine(BaseSearchEngine):
     ) -> List[Dict[str, Any]]:
         """
         Get full content for the relevant search results.
-        If include_full_content is True and FullSearchResults is available,
-        retrieves full webpage content for the results.
+        If include_full_content is True and raw content was retrieved,
+        includes it in the results.
 
         Args:
             relevant_items: List of relevant preview dictionaries
 
         Returns:
-            List of result dictionaries with full content if requested
+            List of result dictionaries with full content if available
         """
         # Check if we should get full content
         if (
@@ -212,7 +228,7 @@ class BraveSearchEngine(BaseSearchEngine):
         ):
             logger.info("Snippet-only mode, skipping full content retrieval")
 
-            # Return the relevant items with their full Brave information
+            # Return the relevant items with their full Tavily information
             results = []
             for item in relevant_items:
                 # Use the full result if available, otherwise use the preview
@@ -244,12 +260,19 @@ class BraveSearchEngine(BaseSearchEngine):
                 logger.error(f"Error retrieving full content: {e}")
                 # Fall back to returning the items without full content
 
-        # Return items with their full Brave information
+        # Return items with their full Tavily information
         results = []
         for item in relevant_items:
             # Use the full result if available, otherwise use the preview
             if "_full_result" in item:
                 result = item["_full_result"].copy()
+
+                # If Tavily provided raw_content, include it
+                if "raw_content" in result and self.include_full_content:
+                    result["content"] = result.get(
+                        "raw_content", result.get("content", "")
+                    )
+
                 # Remove temporary field
                 if "_full_result" in result:
                     del result["_full_result"]
@@ -264,7 +287,7 @@ class BraveSearchEngine(BaseSearchEngine):
 
     def run(self, query: str) -> List[Dict[str, Any]]:
         """
-        Execute a search using Brave Search with the two-phase approach.
+        Execute a search using Tavily with the two-phase approach.
 
         Args:
             query: The search query
@@ -272,7 +295,7 @@ class BraveSearchEngine(BaseSearchEngine):
         Returns:
             List of search results
         """
-        logger.info("---Execute a search using Brave Search---")
+        logger.info("---Execute a search using Tavily---")
 
         # Use the implementation from the parent class which handles all phases
         results = super().run(query)

@@ -55,7 +55,7 @@ class FocusedIterationStrategy(BaseSearchStrategy):
         all_links_of_system=None,
         max_iterations: int = 8,  # OPTIMAL FOR SIMPLEQA: 96.51% accuracy achieved
         questions_per_iteration: int = 5,  # OPTIMAL FOR SIMPLEQA: proven config
-        use_browsecomp_optimization: bool = False,  # Can be False for pure SimpleQA
+        use_browsecomp_optimization: bool = True,  # True for 95%+ accuracy with forced_answer handler
     ):
         """Initialize with components optimized for focused iteration."""
         super().__init__(all_links_of_system)
@@ -63,9 +63,9 @@ class FocusedIterationStrategy(BaseSearchStrategy):
         self.model = model or get_llm()
         self.progress_callback = None
 
-        # Configuration
-        self.max_iterations = max_iterations
-        self.questions_per_iteration = questions_per_iteration
+        # Configuration - ensure these are integers
+        self.max_iterations = int(max_iterations)
+        self.questions_per_iteration = int(questions_per_iteration)
         self.use_browsecomp_optimization = use_browsecomp_optimization
 
         # Initialize specialized components
@@ -158,9 +158,11 @@ class FocusedIterationStrategy(BaseSearchStrategy):
                         questions_by_iteration=self.questions_by_iteration,
                     )
 
-                # Always include original query in first iteration
+                # Always include original query in first iteration, but respect question limit
                 if iteration == 1 and query not in questions:
                     questions = [query] + questions
+                    # Trim to respect questions_per_iteration limit
+                    questions = questions[: self.questions_per_iteration]
 
                 self.questions_by_iteration[iteration] = questions
                 logger.info(f"Iteration {iteration} questions: {questions}")

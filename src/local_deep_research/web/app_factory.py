@@ -61,8 +61,10 @@ def create_app():
     # Disable CSRF for API routes
     @app.before_request
     def disable_csrf_for_api():
-        if request.path.startswith("/api/v1/") or request.path.startswith(
-            "/research/api/"
+        if (
+            request.path.startswith("/api/v1/")
+            or request.path.startswith("/research/api/")
+            or request.path.startswith("/benchmark/api/")
         ):
             csrf.protect = lambda: None
 
@@ -171,6 +173,7 @@ def register_blueprints(app):
     from .routes.metrics_routes import metrics_bp
     from .routes.research_routes import research_bp
     from .routes.settings_routes import settings_bp
+    from ..benchmarks.web_api.benchmark_routes import benchmark_bp
 
     # Add root route
     @app.route("/")
@@ -188,6 +191,7 @@ def register_blueprints(app):
     app.register_blueprint(
         api_bp, url_prefix="/research/api"
     )  # Register API blueprint with prefix
+    app.register_blueprint(benchmark_bp)  # Register benchmark blueprint
 
     # Register API v1 blueprint
     app.register_blueprint(api_blueprint)  # Already has url_prefix='/api/v1'

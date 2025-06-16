@@ -105,38 +105,6 @@ def calculate_warnings():
                 }
             )
 
-        # SearXNG recommendation: more questions instead of more iterations
-        search_engine = get_setting(
-            "search.tool", "wikipedia", db_session
-        ).lower()
-        iterations = int(get_setting("search.iterations", 2, db_session))
-        questions_per_iteration = int(
-            get_setting("search.questions_per_iteration", 3, db_session)
-        )
-        dismiss_searxng_recommendation = get_setting(
-            "app.warnings.dismiss_searxng_recommendation", False, db_session
-        )
-
-        logger.info(
-            f"SearXNG warning check: engine={search_engine}, iterations={iterations}, dismissed={dismiss_searxng_recommendation}"
-        )
-
-        if (
-            search_engine == "searxng"
-            and iterations > 2
-            and not dismiss_searxng_recommendation
-        ):
-            logger.info("Adding SearXNG optimization warning")
-            warnings.append(
-                {
-                    "type": "searxng_recommendation",
-                    "icon": "💡",
-                    "title": "SearXNG Optimization Tip",
-                    "message": f"For SearXNG, we recommend using more questions per iteration ({questions_per_iteration} → 10) instead of more iterations ({iterations}). SearXNG handles multiple questions efficiently in a single iteration.",
-                    "dismissKey": "app.warnings.dismiss_searxng_recommendation",
-                }
-            )
-
     except Exception as e:
         logger.warning(f"Error calculating warnings: {e}")
 
@@ -1761,3 +1729,94 @@ def check_ollama_status():
     except requests.exceptions.RequestException as e:
         logger.exception("Ollama check failed")
         return jsonify({"running": False, "error": str(e)})
+
+
+@settings_bp.route("/api/rate-limiting/status", methods=["GET"])
+def api_get_rate_limiting_status():
+    """Get current rate limiting status and statistics"""
+    try:
+        from ...web_search_engines.rate_limiting import get_tracker
+
+        tracker = get_tracker()
+
+        # Get basic status
+        status = {
+            "enabled": tracker.enabled,
+            "exploration_rate": tracker.exploration_rate,
+            "learning_rate": tracker.learning_rate,
+            "memory_window": tracker.memory_window,
+        }
+
+        # Get engine statistics
+        engine_stats = tracker.get_stats()
+        engines = []
+
+        for stat in engine_stats:
+            (
+                engine_type,
+                base_wait,
+                min_wait,
+                max_wait,
+                last_updated,
+                total_attempts,
+                success_rate,
+            ) = stat
+            engines.append(
+                {
+                    "engine_type": engine_type,
+                    "base_wait_seconds": round(base_wait, 2),
+                    "min_wait_seconds": round(min_wait, 2),
+                    "max_wait_seconds": round(max_wait, 2),
+                    "last_updated": last_updated,
+                    "total_attempts": total_attempts,
+                    "success_rate": round(success_rate * 100, 1)
+                    if success_rate
+                    else 0.0,
+                }
+            )
+
+        return jsonify({"status": status, "engines": engines})
+
+    except Exception as e:
+        logger.exception("Error getting rate limiting status")
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route(
+    "/api/rate-limiting/engines/<engine_type>/reset", methods=["POST"]
+)
+def api_reset_engine_rate_limiting(engine_type):
+    """Reset rate limiting data for a specific engine"""
+    try:
+        from ...web_search_engines.rate_limiting import get_tracker
+
+        tracker = get_tracker()
+        tracker.reset_engine(engine_type)
+
+        return jsonify(
+            {"message": f"Rate limiting data reset for {engine_type}"}
+        )
+
+    except Exception as e:
+        logger.exception(f"Error resetting rate limiting for {engine_type}")
+        return jsonify({"error": str(e)}), 500
+
+
+@settings_bp.route("/api/rate-limiting/cleanup", methods=["POST"])
+def api_cleanup_rate_limiting():
+    """Clean up old rate limiting data"""
+    try:
+        from ...web_search_engines.rate_limiting import get_tracker
+
+        days = request.json.get("days", 30) if request.is_json else 30
+
+        tracker = get_tracker()
+        tracker.cleanup_old_data(days)
+
+        return jsonify(
+            {"message": f"Cleaned up rate limiting data older than {days} days"}
+        )
+
+    except Exception as e:
+        logger.exception("Error cleaning up rate limiting data")
+        return jsonify({"error": str(e)}), 500
