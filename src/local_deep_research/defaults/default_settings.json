@@ -4487,5 +4487,78 @@
         "ui_element": "select",
         "value": "balanced",
         "visible": true
+    },
+    "benchmark.evaluation.provider": {
+        "category": "benchmark",
+        "description": "Provider for benchmark evaluation model",
+        "editable": true,
+        "max_value": null,
+        "min_value": null,
+        "name": "Evaluation Provider",
+        "options": [
+            {
+                "label": "OpenRouter (Recommended)",
+                "value": "openai_endpoint"
+            },
+            {
+                "label": "OpenAI API",
+                "value": "openai"
+            },
+            {
+                "label": "Anthropic API",
+                "value": "anthropic"
+            },
+            {
+                "label": "Ollama (Local)",
+                "value": "ollama"
+            }
+        ],
+        "step": null,
+        "type": "SEARCH",
+        "ui_element": "select",
+        "value": "openai_endpoint",
+        "visible": true
+    },
+    "benchmark.evaluation.model": {
+        "category": "benchmark",
+        "description": "Model for evaluating benchmark results",
+        "editable": true,
+        "max_value": null,
+        "min_value": null,
+        "name": "Evaluation Model",
+        "options": null,
+        "step": null,
+        "type": "SEARCH",
+        "ui_element": "text",
+        "value": "anthropic/claude-3.7-sonnet",
+        "visible": true
+    },
+    "benchmark.evaluation.endpoint_url": {
+        "category": "benchmark",
+        "description": "Endpoint URL for evaluation model (when using OpenAI-compatible APIs)",
+        "editable": true,
+        "max_value": null,
+        "min_value": null,
+        "name": "Evaluation Endpoint URL",
+        "options": null,
+        "step": null,
+        "type": "SEARCH",
+        "ui_element": "text",
+        "value": "https://openrouter.ai/api/v1",
+        "visible": true
+    },
+    "benchmark.evaluation.temperature": {
+        "category": "benchmark",
+        "description": "Temperature for evaluation (0 recommended for consistency)",
+        "editable": true,
+        "max_value": 1.0,
+        "min_value": 0.0,
+        "name": "Evaluation Temperature",
+        "options": null,
+        "step": 0.1,
+        "type": "SEARCH",
+        "ui_element": "range",
+        "value": 0,
+        "visible": true
     }
 }

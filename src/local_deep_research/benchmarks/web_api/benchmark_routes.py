@@ -85,22 +85,48 @@ def start_benchmark():
                 "llm.anthropic.api_key"
             )
 
-        # Get evaluation config from request or use OpenRouter default with settings API key
+        # Get evaluation config from database settings or request
         if "evaluation_config" in data:
             evaluation_config = data["evaluation_config"]
         else:
-            # Use database settings for API key (already have settings_manager from above)
-            openrouter_api_key = settings_manager.get_setting(
-                "llm.openai_endpoint.api_key"
+            # Read evaluation config from database settings
+            evaluation_provider = settings_manager.get_setting(
+                "benchmark.evaluation.provider", "openai_endpoint"
+            )
+            evaluation_model = settings_manager.get_setting(
+                "benchmark.evaluation.model", "anthropic/claude-3.7-sonnet"
+            )
+            evaluation_temperature = float(
+                settings_manager.get_setting(
+                    "benchmark.evaluation.temperature", 0
+                )
             )
 
             evaluation_config = {
-                "provider": "openai_endpoint",
-                "model_name": "anthropic/claude-3.7-sonnet",
-                "openai_endpoint_url": "https://openrouter.ai/api/v1",
-                "openai_endpoint_api_key": openrouter_api_key,
-                "temperature": 0,
+                "provider": evaluation_provider,
+                "model_name": evaluation_model,
+                "temperature": evaluation_temperature,
             }
+
+            # Add provider-specific settings for evaluation
+            if evaluation_provider == "openai_endpoint":
+                evaluation_config["openai_endpoint_url"] = (
+                    settings_manager.get_setting(
+                        "benchmark.evaluation.endpoint_url",
+                        "https://openrouter.ai/api/v1",
+                    )
+                )
+                evaluation_config["openai_endpoint_api_key"] = (
+                    settings_manager.get_setting("llm.openai_endpoint.api_key")
+                )
+            elif evaluation_provider == "openai":
+                evaluation_config["openai_api_key"] = (
+                    settings_manager.get_setting("llm.openai.api_key")
+                )
+            elif evaluation_provider == "anthropic":
+                evaluation_config["anthropic_api_key"] = (
+                    settings_manager.get_setting("llm.anthropic.api_key")
+                )
         datasets_config = data.get("datasets_config", {})
 
         # Close database session
@@ -593,19 +619,44 @@ def start_benchmark_simple():
                 "llm.anthropic.api_key"
             )
 
-        session.close()
-
-        # Use OpenRouter with Claude 3.7 Sonnet for evaluation (get API key from settings)
-        openrouter_api_key = settings_manager.get_setting(
-            "llm.openai_endpoint.api_key"
+        # Read evaluation config from database settings
+        evaluation_provider = settings_manager.get_setting(
+            "benchmark.evaluation.provider", "openai_endpoint"
         )
+        evaluation_model = settings_manager.get_setting(
+            "benchmark.evaluation.model", "anthropic/claude-3.7-sonnet"
+        )
+        evaluation_temperature = float(
+            settings_manager.get_setting("benchmark.evaluation.temperature", 0)
+        )
+
         evaluation_config = {
-            "provider": "openai_endpoint",
-            "model_name": "anthropic/claude-3.7-sonnet",
-            "openai_endpoint_url": "https://openrouter.ai/api/v1",
-            "openai_endpoint_api_key": openrouter_api_key,
-            "temperature": 0,
+            "provider": evaluation_provider,
+            "model_name": evaluation_model,
+            "temperature": evaluation_temperature,
         }
+
+        # Add provider-specific settings for evaluation
+        if evaluation_provider == "openai_endpoint":
+            evaluation_config["openai_endpoint_url"] = (
+                settings_manager.get_setting(
+                    "benchmark.evaluation.endpoint_url",
+                    "https://openrouter.ai/api/v1",
+                )
+            )
+            evaluation_config["openai_endpoint_api_key"] = (
+                settings_manager.get_setting("llm.openai_endpoint.api_key")
+            )
+        elif evaluation_provider == "openai":
+            evaluation_config["openai_api_key"] = settings_manager.get_setting(
+                "llm.openai.api_key"
+            )
+        elif evaluation_provider == "anthropic":
+            evaluation_config["anthropic_api_key"] = (
+                settings_manager.get_setting("llm.anthropic.api_key")
+            )
+
+        session.close()
 
         # Create and start benchmark
         benchmark_run_id = benchmark_service.create_benchmark_run(
