@@ -131,7 +131,9 @@ class BaseSearchEngine(ABC):
             search_result_count=self._last_results_count if success else 0,
         )
 
-    def run(self, query: str) -> List[Dict[str, Any]]:
+    def run(
+        self, query: str, research_context: Dict[str, Any] = None
+    ) -> List[Dict[str, Any]]:
         """
         Run the search engine with a given query, retrieving and filtering results.
         This implements a two-phase retrieval approach:
@@ -147,6 +149,19 @@ class BaseSearchEngine(ABC):
         """
         # Track search call for metrics
         tracker = get_search_tracker()
+
+        # For thread-safe context propagation: if we have research_context parameter, use it
+        # Otherwise, try to inherit from current thread context (normal case)
+        # This allows strategies running in threads to explicitly pass context when needed
+        current_context = tracker._get_research_context()
+        if research_context:
+            # Explicit context provided - use it and set it for this thread
+            tracker.set_research_context(research_context)
+        elif not current_context.get("research_id"):
+            # No context in current thread and none provided - try to get from main thread
+            # This handles the case where we're in a worker thread without context
+            pass  # Will use empty context, research_id will be None
+
         engine_name = self.__class__.__name__.replace(
             "SearchEngine", ""
         ).lower()

@@ -358,6 +358,11 @@ class FocusedIterationStrategy(BaseSearchStrategy):
         """Execute searches in parallel (like source-based strategy)."""
         all_results = []
 
+        # Import context preservation utility
+        from ...utilities.thread_context import (
+            create_context_preserving_wrapper,
+        )
+
         def search_question(q):
             try:
                 result = self.search.run(q)
@@ -366,11 +371,18 @@ class FocusedIterationStrategy(BaseSearchStrategy):
                 logger.error(f"Error searching '{q}': {str(e)}")
                 return {"question": q, "results": [], "error": str(e)}
 
+        # Create context-preserving wrapper for the search function
+        context_aware_search = create_context_preserving_wrapper(
+            search_question
+        )
+
         # Run searches in parallel
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=len(queries)
         ) as executor:
-            futures = [executor.submit(search_question, q) for q in queries]
+            futures = [
+                executor.submit(context_aware_search, q) for q in queries
+            ]
 
             for future in concurrent.futures.as_completed(futures):
                 result_dict = future.result()
@@ -385,6 +397,11 @@ class FocusedIterationStrategy(BaseSearchStrategy):
         all_results = []
         completed_searches = 0
         total_searches = len(queries)
+
+        # Import context preservation utility
+        from ...utilities.thread_context import (
+            create_context_preserving_wrapper,
+        )
 
         def search_question_with_progress(q):
             nonlocal completed_searches
@@ -441,12 +458,17 @@ class FocusedIterationStrategy(BaseSearchStrategy):
                     "result_count": 0,
                 }
 
+        # Create context-preserving wrapper for the search function
+        context_aware_search_with_progress = create_context_preserving_wrapper(
+            search_question_with_progress
+        )
+
         # Run searches in parallel
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=min(len(queries), 5)
         ) as executor:
             futures = [
-                executor.submit(search_question_with_progress, q)
+                executor.submit(context_aware_search_with_progress, q)
                 for q in queries
             ]
 

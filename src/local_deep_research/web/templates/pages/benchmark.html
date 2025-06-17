@@ -193,8 +193,8 @@
 }
 
 .processing-status.processing {
-    background: #e3f2fd;
-    color: #1976d2;
+    background: #ff9800;
+    color: #ffffff;
 }
 
 .processing-status.completed {
@@ -781,7 +781,7 @@
                             <div class="alert" style="background: rgba(33, 150, 243, 0.1); border: 1px solid rgba(33, 150, 243, 0.3); color: #ffffff; padding: 15px; border-radius: 6px; margin-top: 15px;">
                                 <i class="fas fa-info-circle" style="color: #2196f3; margin-right: 8px;"></i>
                                 <strong style="color: #2196f3;">Evaluation Model Selection:</strong>
-                                For accurate benchmark grading, use high-performance models like Claude 3.5 Sonnet, GPT-4, or similar flagship models.
+                                For accurate benchmark grading, use flagship models from major providers like Claude Sonnet series or GPT-4 class models.
                                 Local models and smaller cloud models may produce inconsistent evaluations, affecting benchmark accuracy scores.
                             </div>
                         </div>
@@ -1027,7 +1027,17 @@ function initializeBenchmarkForm() {
         updateConfigSummary();
     });
 
-    // BrowseComp is disabled, so no event listener needed
+    // BrowseComp toggle - enable/disable count input when checkbox is toggled
+    document.getElementById('browsecomp_enabled').addEventListener('change', function() {
+        const countInput = document.getElementById('browsecomp_count');
+        countInput.disabled = !this.checked;
+        if (!this.checked) {
+            countInput.value = 0; // Reset to 0 when disabled
+        } else {
+            countInput.value = 5; // Set a reasonable default when enabled
+        }
+        updateConfigSummary();
+    });
 
 }
 
@@ -1394,8 +1404,11 @@ function checkForRunningBenchmark() {
 
 // Load current settings from database and display them
 async function loadCurrentSettings() {
+    console.log('Starting loadCurrentSettings...');
+
     try {
         // Load all settings individually
+        console.log('Fetching settings from API...');
         const [llmResponse, searchToolResponse, iterationsResponse, questionsResponse, strategyResponse, evalProviderResponse, evalModelResponse, evalTempResponse, evalEndpointResponse] = await Promise.all([
             fetch('/research/settings/api/llm'),
             fetch('/research/settings/api/search.tool'),
@@ -1407,6 +1420,10 @@ async function loadCurrentSettings() {
             fetch('/research/settings/api/benchmark.evaluation.temperature'),
             fetch('/research/settings/api/benchmark.evaluation.endpoint_url')
         ]);
+
+        console.log('API responses received, checking status...');
+        console.log('LLM response status:', llmResponse.status);
+        console.log('Search tool response status:', searchToolResponse.status);
 
         const llmData = await llmResponse.json();
         const searchToolData = await searchToolResponse.json();
@@ -1420,14 +1437,25 @@ async function loadCurrentSettings() {
 
         console.log('Loaded settings:', { llmData, searchToolData, iterationsData, questionsData, strategyData, evalProviderData, evalModelData, evalTempData, evalEndpointData });
 
-        // Display LLM settings
-        if (llmData && llmData.settings && llmData.settings.value) {
-            const settings = llmData.settings.value;
+        // Display LLM settings with error handling
+        try {
+            if (llmData && llmData.settings && llmData.settings.value) {
+                const settings = llmData.settings.value;
 
-            document.getElementById('current-provider').textContent =
-                settings.provider ? settings.provider.toUpperCase() : 'Not set';
-            document.getElementById('current-model').textContent =
-                settings.model || 'Not set';
+                const providerEl = document.getElementById('current-provider');
+                const modelEl = document.getElementById('current-model');
+
+                if (providerEl) providerEl.textContent = settings.provider ? settings.provider.toUpperCase() : 'Not set';
+                if (modelEl) modelEl.textContent = settings.model || 'Not set';
+            } else {
+                // Set defaults if no data
+                const providerEl = document.getElementById('current-provider');
+                const modelEl = document.getElementById('current-model');
+                if (providerEl) providerEl.textContent = 'Not set';
+                if (modelEl) modelEl.textContent = 'Not set';
+            }
+        } catch (e) {
+            console.error('Error setting LLM display:', e);
         }
 
         // Display search tool and check for warnings
@@ -1437,6 +1465,8 @@ async function loadCurrentSettings() {
 
             // Check for search engine warnings
             checkSearchEngineWarnings(searchTool);
+        } else {
+            document.getElementById('current-search-tool').textContent = 'Not set';
         }
 
         // Display search iterations
@@ -1463,48 +1493,28 @@ async function loadCurrentSettings() {
             document.getElementById('current-strategy').textContent = 'focused_iteration'; // default
         }
 
-        // Display evaluation settings
-        if (evalProviderData && evalProviderData.settings && evalProviderData.settings.value) {
-            const providerValue = evalProviderData.settings.value;
-            const providerLabels = {
-                'openai_endpoint': 'OpenRouter',
-                'openai': 'OpenAI',
-                'anthropic': 'Anthropic',
-                'ollama': 'Ollama'
-            };
-            document.getElementById('current-evaluation-provider').textContent =
-                providerLabels[providerValue] || providerValue || 'OpenRouter';
-        } else {
-            document.getElementById('current-evaluation-provider').textContent = 'OpenRouter'; // default
-        }
+        // Display evaluation settings (commented out as these elements don't exist)
+        // TODO: Add evaluation settings display section if needed
 
-        if (evalModelData && evalModelData.settings && evalModelData.settings.value) {
-            document.getElementById('current-evaluation-model').textContent =
-                evalModelData.settings.value || 'anthropic/claude-3.7-sonnet';
-        } else {
-            document.getElementById('current-evaluation-model').textContent = 'anthropic/claude-3.7-sonnet'; // default
-        }
-
-        if (evalTempData && evalTempData.settings && evalTempData.settings.value !== undefined) {
-            document.getElementById('current-evaluation-temperature').textContent =
-                evalTempData.settings.value.toString() || '0';
-        } else {
-            document.getElementById('current-evaluation-temperature').textContent = '0'; // default
-        }
-
-        if (evalEndpointData && evalEndpointData.settings && evalEndpointData.settings.value) {
-            document.getElementById('current-evaluation-endpoint').textContent =
-                evalEndpointData.settings.value || 'https://openrouter.ai/api/v1';
-        } else {
-            document.getElementById('current-evaluation-endpoint').textContent = 'https://openrouter.ai/api/v1'; // default
-        }
+        // For now, just log the evaluation settings
+        console.log('Evaluation settings loaded:', {
+            provider: evalProviderData?.settings?.value || 'openai_endpoint',
+            model: evalModelData?.settings?.value || 'anthropic/claude-3.7-sonnet',
+            temperature: evalTempData?.settings?.value || 0,
+            endpoint: evalEndpointData?.settings?.value || 'https://openrouter.ai/api/v1'
+        });
 
     } catch (error) {
         console.error('Error loading current settings:', error);
-        document.querySelectorAll('#current-settings-display .metric-value, #current-evaluation-settings-display .metric-value').forEach(el => {
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
+
+        // Set error text on all metric values
+        document.querySelectorAll('#current-settings-display .metric-value').forEach(el => {
             el.textContent = 'Error loading';
         });
-        showAlert('Could not load current settings. Using defaults.', 'warning');
+
+        showAlert('Could not load current settings. Check console for details.', 'warning');
     }
 }
 
@@ -2084,11 +2094,20 @@ let evaluationEndpointInput = null;
 let evaluationTemperatureInput = null;
 
 function initializeEvaluationSettings() {
+    console.log('Initializing evaluation settings...');
+
     // Get DOM elements
     evaluationProviderSelect = document.getElementById('evaluation_provider');
     evaluationModelInput = document.getElementById('evaluation_model');
     evaluationEndpointInput = document.getElementById('evaluation_endpoint_url');
     evaluationTemperatureInput = document.getElementById('evaluation_temperature');
+
+    console.log('DOM elements found:', {
+        provider: !!evaluationProviderSelect,
+        model: !!evaluationModelInput,
+        endpoint: !!evaluationEndpointInput,
+        temperature: !!evaluationTemperatureInput
+    });
 
     // Setup evaluation model dropdown using existing custom dropdown
     setupEvaluationModelDropdown();
@@ -2102,8 +2121,10 @@ function initializeEvaluationSettings() {
         loadEvaluationModelsFromAPI();
     }
 
-    // Load settings
-    loadEvaluationSettings();
+    // Load settings with a small delay to ensure DOM is ready
+    setTimeout(() => {
+        loadEvaluationSettings();
+    }, 100);
 }
 
 function setupEvaluationModelDropdown() {
@@ -2339,6 +2360,14 @@ function setupEvaluationEventHandlers() {
 }
 
 function loadEvaluationSettings() {
+    console.log('Loading evaluation settings...');
+    console.log('Current DOM elements state:', {
+        provider: !!evaluationProviderSelect,
+        model: !!evaluationModelInput,
+        endpoint: !!evaluationEndpointInput,
+        temperature: !!evaluationTemperatureInput
+    });
+
     fetch('/research/settings/api', {
         method: 'GET',
         headers: {
@@ -2347,46 +2376,86 @@ function loadEvaluationSettings() {
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Evaluation settings API response:', data);
+
         if (data && data.settings) {
             // Set provider
             const providerSetting = data.settings["benchmark.evaluation.provider"];
-            if (providerSetting && evaluationProviderSelect) {
-                evaluationProviderSelect.value = providerSetting.value || 'openai_endpoint';
+            console.log('Provider setting:', providerSetting);
+
+            if (evaluationProviderSelect) {
+                const providerValue = providerSetting?.value || 'openai_endpoint';
+                console.log('Setting provider to:', providerValue, 'on element:', evaluationProviderSelect);
+                evaluationProviderSelect.value = providerValue;
+                console.log('Provider value after setting:', evaluationProviderSelect.value);
 
                 // Show/hide endpoint field
                 if (evaluationEndpointInput && evaluationEndpointInput.parentNode) {
                     evaluationEndpointInput.parentNode.style.display =
-                        providerSetting.value === 'openai_endpoint' ? 'block' : 'none';
+                        providerValue === 'openai_endpoint' ? 'block' : 'none';
+                    console.log('Endpoint field visibility:', evaluationEndpointInput.parentNode.style.display);
                 }
+            } else {
+                console.warn('evaluationProviderSelect is null');
             }
 
             // Set model
             const modelSetting = data.settings["benchmark.evaluation.model"];
-            if (modelSetting && evaluationModelInput) {
-                evaluationModelInput.value = modelSetting.value || 'anthropic/claude-3.7-sonnet';
+            console.log('Model setting:', modelSetting);
+
+            if (evaluationModelInput) {
+                const modelValue = modelSetting?.value || 'anthropic/claude-3.7-sonnet';
+                console.log('Setting model to:', modelValue, 'on element:', evaluationModelInput);
+                evaluationModelInput.value = modelValue;
+                console.log('Model value after setting:', evaluationModelInput.value);
+            } else {
+                console.warn('evaluationModelInput is null');
             }
 
             // Set endpoint URL
             const endpointSetting = data.settings["benchmark.evaluation.endpoint_url"];
-            if (endpointSetting && evaluationEndpointInput) {
-                evaluationEndpointInput.value = endpointSetting.value || 'https://openrouter.ai/api/v1';
+            if (evaluationEndpointInput) {
+                const endpointValue = endpointSetting?.value || 'https://openrouter.ai/api/v1';
+                console.log('Setting endpoint to:', endpointValue, 'on element:', evaluationEndpointInput);
+                evaluationEndpointInput.value = endpointValue;
+                console.log('Endpoint value after setting:', evaluationEndpointInput.value);
+            } else {
+                console.warn('evaluationEndpointInput is null');
             }
 
             // Set temperature
             const temperatureSetting = data.settings["benchmark.evaluation.temperature"];
-            if (temperatureSetting && evaluationTemperatureInput) {
-                evaluationTemperatureInput.value = temperatureSetting.value || 0;
+            if (evaluationTemperatureInput) {
+                const tempValue = temperatureSetting?.value || 0;
+                console.log('Setting temperature to:', tempValue, 'on element:', evaluationTemperatureInput);
+                evaluationTemperatureInput.value = tempValue;
+                console.log('Temperature value after setting:', evaluationTemperatureInput.value);
+            } else {
+                console.warn('evaluationTemperatureInput is null');
             }
+        } else {
+            console.log('No settings found in response, using defaults');
+            setEvaluationDefaults();
         }
     })
     .catch(error => {
         console.error('Error loading evaluation settings:', error);
-        // Set defaults
-        if (evaluationProviderSelect) evaluationProviderSelect.value = 'openai_endpoint';
-        if (evaluationModelInput) evaluationModelInput.value = 'anthropic/claude-3.7-sonnet';
-        if (evaluationEndpointInput) evaluationEndpointInput.value = 'https://openrouter.ai/api/v1';
-        if (evaluationTemperatureInput) evaluationTemperatureInput.value = 0;
+        setEvaluationDefaults();
     });
+}
+
+function setEvaluationDefaults() {
+    console.log('Setting evaluation defaults');
+    if (evaluationProviderSelect) {
+        evaluationProviderSelect.value = 'openai_endpoint';
+        // Show endpoint field for default provider
+        if (evaluationEndpointInput && evaluationEndpointInput.parentNode) {
+            evaluationEndpointInput.parentNode.style.display = 'block';
+        }
+    }
+    if (evaluationModelInput) evaluationModelInput.value = 'anthropic/claude-3.7-sonnet';
+    if (evaluationEndpointInput) evaluationEndpointInput.value = 'https://openrouter.ai/api/v1';
+    if (evaluationTemperatureInput) evaluationTemperatureInput.value = 0;
 }
 
 function saveEvaluationSetting(key, value) {
