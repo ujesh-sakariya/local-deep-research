@@ -210,6 +210,59 @@ def add_research_id_to_benchmark_results(engine):
         return False
 
 
+def add_uuid_id_column_to_research_history(engine):
+    """
+    Adds a new `uuid_id` string column to the `research_history` table if it
+    does not exist already.
+    """
+    try:
+        import sqlite3
+
+        # Get database path from engine
+        db_path = engine.url.database
+
+        logger.info("Checking if research_history needs uuid_id column...")
+
+        conn = sqlite3.connect(db_path)
+
+        try:
+            cursor = conn.cursor()
+
+            # Check if table exists
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='research_history'"
+            )
+            if not cursor.fetchone():
+                logger.info("research_history table does not exist, skipping")
+                return True
+
+            # Check if uuid_id column already exists
+            cursor.execute("PRAGMA table_info(research_history)")
+            columns = cursor.fetchall()
+            has_uuid_id = any(col[1] == "uuid_id" for col in columns)
+
+            if has_uuid_id:
+                logger.info("research_history already has uuid_id column")
+                return True
+
+            # Add uuid_id column
+            logger.info("Adding uuid_id column to research_history table")
+            cursor.execute(
+                "ALTER TABLE research_history ADD COLUMN uuid_id CHAR(36)"
+            )
+
+            conn.commit()
+            logger.info("Successfully added uuid_id column to research_history")
+            return True
+
+        finally:
+            conn.close()
+
+    except Exception:
+        logger.exception("Error adding uuid_id column to research_history")
+        return False
+
+
 def convert_research_id_to_string_if_needed(engine):
     """
     Convert research_id columns from Integer to String in all tables.
@@ -404,6 +457,9 @@ def run_schema_upgrades():
 
         # 6. Convert research_id columns from integer to string
         convert_research_id_to_string_if_needed(engine)
+
+        # 7. Add uuid_id column to research_history if missing
+        add_uuid_id_column_to_research_history(engine)
 
         logger.info("Schema upgrades completed successfully")
         return True
