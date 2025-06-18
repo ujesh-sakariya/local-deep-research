@@ -1779,7 +1779,7 @@ def api_get_rate_limiting_status():
 
     except Exception as e:
         logger.exception("Error getting rate limiting status")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @settings_bp.route(
@@ -1799,7 +1799,7 @@ def api_reset_engine_rate_limiting(engine_type):
 
     except Exception as e:
         logger.exception(f"Error resetting rate limiting for {engine_type}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
 
 
 @settings_bp.route("/api/rate-limiting/cleanup", methods=["POST"])
@@ -1819,4 +1819,4 @@ def api_cleanup_rate_limiting():
 
     except Exception as e:
         logger.exception("Error cleaning up rate limiting data")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal error occurred"}), 500
