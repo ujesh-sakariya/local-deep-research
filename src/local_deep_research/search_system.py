@@ -150,7 +150,7 @@ class AdvancedSearchSystem:
                 search=self.search,
                 all_links_of_system=self.all_links_of_system,
             )
-        elif strategy_name.lower() == "source-based":
+        elif strategy_name.lower() in ["source-based", "source_based"]:
             logger.info("Creating SourceBasedSearchStrategy instance")
             self.strategy = SourceBasedSearchStrategy(
                 model=self.model,

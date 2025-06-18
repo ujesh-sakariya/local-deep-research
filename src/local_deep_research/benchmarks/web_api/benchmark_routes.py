@@ -168,7 +168,9 @@ def start_benchmark():
 
     except Exception as e:
         logger.error(f"Error starting benchmark: {e}")
-        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
+        return jsonify(
+            {"success": False, "error": "An internal error has occurred."}
+        ), 500
 
 
 @benchmark_bp.route("/api/running", methods=["GET"])
@@ -207,7 +209,9 @@ def get_running_benchmark():
 
     except Exception as e:
         logger.error(f"Error checking for running benchmark: {e}")
-        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
+        return jsonify(
+            {"success": False, "error": "An internal error has occurred."}
+        ), 500
 
 
 @benchmark_bp.route("/api/status/<int:benchmark_run_id>", methods=["GET"])
@@ -225,7 +229,9 @@ def get_benchmark_status(benchmark_run_id: int):
 
     except Exception as e:
         logger.error(f"Error getting benchmark status: {e}")
-        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
+        return jsonify(
+            {"success": False, "error": "An internal error has occurred."}
+        ), 500
 
 
 @benchmark_bp.route("/api/cancel/<int:benchmark_run_id>", methods=["POST"])
@@ -245,7 +251,9 @@ def cancel_benchmark(benchmark_run_id: int):
 
     except Exception as e:
         logger.error(f"Error cancelling benchmark: {e}")
-        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
+        return jsonify(
+            {"success": False, "error": "An internal error has occurred."}
+        ), 500
 
 
 @benchmark_bp.route("/api/history", methods=["GET"])
@@ -372,7 +380,9 @@ def get_benchmark_history():
 
     except Exception as e:
         logger.error(f"Error getting benchmark history: {e}")
-        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
+        return jsonify(
+            {"success": False, "error": "An internal error has occurred."}
+        ), 500
 
 
 @benchmark_bp.route("/api/results/<int:benchmark_run_id>", methods=["GET"])
@@ -438,6 +448,12 @@ def get_benchmark_results(benchmark_run_id: int):
 
                     logger.info(
                         f"Found search metrics for {len(search_results_by_research_id)} research IDs from {len(all_search_calls)} total search calls"
+                    )
+                    logger.debug(
+                        f"Research IDs from results: {research_ids[:5] if len(research_ids) > 5 else research_ids}"
+                    )
+                    logger.debug(
+                        f"Search results by research_id: {dict(list(search_results_by_research_id.items())[:5])}"
                     )
         except Exception as e:
             logger.error(
@@ -508,7 +524,9 @@ def get_benchmark_results(benchmark_run_id: int):
 
     except Exception as e:
         logger.error(f"Error getting benchmark results: {e}")
-        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
+        return jsonify(
+            {"success": False, "error": "An internal error has occurred."}
+        ), 500
 
 
 @benchmark_bp.route("/api/configs", methods=["GET"])
