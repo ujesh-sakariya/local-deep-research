@@ -56,8 +56,8 @@ def get_current_config():
         return jsonify({"success": True, "config": config})
 
     except Exception as e:
-        logger.error(f"Error getting current config: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.exception("Error getting current config")
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 
 # API Routes
