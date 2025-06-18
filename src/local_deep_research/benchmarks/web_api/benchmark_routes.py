@@ -372,7 +372,7 @@ def get_benchmark_history():
 
     except Exception as e:
         logger.error(f"Error getting benchmark history: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
 
 
 @benchmark_bp.route("/api/results/<int:benchmark_run_id>", methods=["GET"])
@@ -508,7 +508,7 @@ def get_benchmark_results(benchmark_run_id: int):
 
     except Exception as e:
         logger.error(f"Error getting benchmark results: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
 
 
 @benchmark_bp.route("/api/configs", methods=["GET"])
