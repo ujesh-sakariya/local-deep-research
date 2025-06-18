@@ -581,7 +581,7 @@
                     <strong>Responsible Usage:</strong> Please use reasonable example counts to avoid overwhelming search engines. The default of 75 examples provides a good balance for configuration testing.
                 </p>
                 <p style="margin-bottom: 18px; line-height: 1.6; color: #e0e0e0;">
-                    <strong>Requirements:</strong> Benchmarks require an OpenRouter API key for evaluation (Claude 3.7 Sonnet). Set <code style="background: #444; padding: 3px 6px; border-radius: 4px; color: #ffa726;">llm.openai_endpoint.api_key</code> in Settings.
+                    <strong>Requirements:</strong> Benchmarks require an evaluation model for grading results. You can configure your preferred provider and model in the Evaluation Settings below. The default uses OpenRouter with Claude 3.7 Sonnet, but you can choose from various providers including OpenAI, Anthropic, or local models.
                 </p>
                 <div style="background: rgba(255, 167, 38, 0.1); border: 1px solid rgba(255, 167, 38, 0.3); padding: 15px; border-radius: 8px; margin-top: 15px;">
                     <h4 style="color: #ffa726; margin-bottom: 10px; font-size: 1rem; display: flex; align-items: center; gap: 8px;">
@@ -783,6 +783,7 @@
                                 <strong style="color: #2196f3;">Evaluation Model Selection:</strong>
                                 For accurate benchmark grading, use flagship models from major providers like Claude Sonnet series or GPT-4 class models.
                                 Local models and smaller cloud models may produce inconsistent evaluations, affecting benchmark accuracy scores.
+                                However, preliminary tests indicate that local models might be adequate for performance evaluation if highest grade standards are not required.
                             </div>
                         </div>
                     </fieldset>
