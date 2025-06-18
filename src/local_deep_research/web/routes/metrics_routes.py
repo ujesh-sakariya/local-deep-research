@@ -452,7 +452,7 @@ def get_rate_limiting_analytics(period="30d"):
                 "healthy_engines": 0,
                 "degraded_engines": 0,
                 "poor_engines": 0,
-                "error": str(e),
+                "error": "An internal error occurred while processing the request.",
             }
         }
 
