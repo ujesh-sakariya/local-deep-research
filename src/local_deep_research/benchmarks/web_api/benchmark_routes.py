@@ -570,9 +570,9 @@ def get_saved_configs():
 
         return jsonify({"success": True, "configs": default_configs})
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error getting saved configs")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
 
 
 @benchmark_bp.route("/api/start-simple", methods=["POST"])
@@ -699,9 +699,9 @@ def start_benchmark_simple():
                 {"success": False, "error": "Failed to start benchmark"}
             ), 500
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error starting simple benchmark")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
 
 
 @benchmark_bp.route("/api/validate-config", methods=["POST"])
