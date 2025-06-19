@@ -423,12 +423,14 @@ def run_research_process(
         # Override search engine if specified
         if search_engine:
             try:
-                if iterations:
-                    system.max_iterations = int(iterations)
-                if questions_per_iteration:
-                    system.questions_per_iteration = int(
-                        questions_per_iteration
-                    )
+                # For focused-iteration strategy, don't override iterations/questions - use database settings
+                if strategy != "focused-iteration":
+                    if iterations:
+                        system.max_iterations = int(iterations)
+                    if questions_per_iteration:
+                        system.questions_per_iteration = int(
+                            questions_per_iteration
+                        )
 
                 # Create a new search object with these settings
                 system.search = get_search(

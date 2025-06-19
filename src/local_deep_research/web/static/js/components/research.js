@@ -145,7 +145,6 @@
         const lastSearchEngine = localStorage.getItem('lastUsedSearchEngine');
         const lastStrategy = localStorage.getItem('lastUsedStrategy') || 'source-based';
 
-        console.log('Local storage values:', { provider: lastProvider, model: lastModel, searchEngine: lastSearchEngine, strategy: lastStrategy });
 
         // Apply local storage values if available
         if (lastProvider && modelProviderSelect) {
@@ -160,7 +159,6 @@
         // Apply saved strategy
         const strategySelect = document.getElementById('strategy');
         if (strategySelect && lastStrategy) {
-            console.log('Setting strategy from localStorage:', lastStrategy);
             strategySelect.value = lastStrategy;
         }
 
@@ -195,8 +193,6 @@
             loadModelOptions(false),
             loadSearchEngineOptions(false)
         ]).then(([modelData, searchEngineData]) => {
-            console.log('Data loaded successfully');
-
             // After loading model data, update the UI with the loaded data
             const currentProvider = modelProviderSelect ? modelProviderSelect.value : (lastProvider || 'OLLAMA');
             updateModelOptionsForProvider(currentProvider, false);
@@ -204,7 +200,6 @@
             // Update search engine options
             if (searchEngineData && Array.isArray(searchEngineData)) {
                 searchEngineOptions = searchEngineData;
-                console.log('Loaded search engines:', searchEngineData.length);
 
                 // Force search engine dropdown to update with new data
                 if (searchEngineDropdownList && window.setupCustomDropdown) {
@@ -214,7 +209,6 @@
                         searchEngineDropdownList,
                         () => searchEngineOptions.length > 0 ? searchEngineOptions : [{ value: '', label: 'No search engines available' }],
                         (value, item) => {
-                            console.log('Search engine selected:', value, item);
                             selectedSearchEngineValue = value;
 
                             // Update the input field
@@ -235,13 +229,11 @@
 
                     // If we have a last selected search engine, try to select it
                     if (lastSearchEngine) {
-                        console.log('Trying to select last search engine:', lastSearchEngine);
                         // Find the matching engine
                         const matchingEngine = searchEngineOptions.find(engine =>
                             engine.value === lastSearchEngine || engine.id === lastSearchEngine);
 
                         if (matchingEngine) {
-                            console.log('Found matching search engine:', matchingEngine);
                             searchEngineInput.value = matchingEngine.label;
                             selectedSearchEngineValue = matchingEngine.value;
 
@@ -1213,6 +1205,9 @@
         console.log('Loading settings from database...');
         let numApiCallsPending = 1;
 
+        // Increase the API calls counter to include strategy loading
+        numApiCallsPending = 3;
+
         // Fetch the current settings from the settings API
         fetch('/research/settings/api', {
             method: 'GET',
@@ -1388,6 +1383,51 @@
             numApiCallsPending--;
             isInitializing = (numApiCallsPending === 0);
         });
+
+        // Load search strategy setting
+        fetch('/research/settings/api/search.search_strategy', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Loaded strategy from database:', data);
+
+                const strategySelect = document.getElementById('strategy');
+                if (data && data.setting && data.setting.value && strategySelect) {
+                    const strategyValue = data.setting.value;
+                    console.log('Setting strategy to:', strategyValue);
+
+                    // Update the select element
+                    strategySelect.value = strategyValue;
+
+                    // Save to localStorage
+                    localStorage.setItem('lastUsedStrategy', strategyValue);
+                }
+
+                numApiCallsPending--;
+                isInitializing = (numApiCallsPending === 0);
+            })
+            .catch(error => {
+                console.error('Error loading strategy:', error);
+
+                // Fallback to localStorage
+                const lastStrategy = localStorage.getItem('lastUsedStrategy');
+                const strategySelect = document.getElementById('strategy');
+                if (lastStrategy && strategySelect) {
+                    strategySelect.value = lastStrategy;
+                }
+
+                numApiCallsPending--;
+                isInitializing = (numApiCallsPending === 0);
+            });
     }
 
     // Add a fallback function to use localStorage settings

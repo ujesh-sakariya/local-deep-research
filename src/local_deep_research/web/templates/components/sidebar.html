@@ -10,6 +10,12 @@
             <li {% if active_page == 'history' %}class="active"{% endif %} data-page="history">
                 <a href="{{ url_for('research.history_page') }}"><i class="fas fa-history"></i> History</a>
             </li>
+            <li {% if active_page == 'benchmark' %}class="active"{% endif %} data-page="benchmark">
+                <a href="{{ url_for('benchmark.index') }}"><i class="fas fa-tachometer-alt"></i> Benchmark</a>
+            </li>
+            <li {% if active_page == 'benchmark-results' %}class="active"{% endif %} data-page="benchmark-results">
+                <a href="{{ url_for('benchmark.results') }}"><i class="fas fa-chart-line"></i> Benchmark Results</a>
+            </li>
             <li {% if active_page == 'metrics' %}class="active"{% endif %} data-page="metrics">
                 <a href="{{ url_for('metrics.metrics_dashboard') }}"><i class="fas fa-chart-bar"></i> Metrics</a>
             </li>

@@ -7,7 +7,6 @@ let globalSettings = {};
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize the research form
-    console.log('DOM loaded, initializing research form');
     initResearchForm();
 });
 
@@ -15,7 +14,6 @@ document.addEventListener('DOMContentLoaded', function() {
  * Initialize the research form with values from settings
  */
 function initResearchForm() {
-    console.log('Initializing research form...');
     // Get form elements
     const iterationsInput = document.getElementById('iterations');
     const questionsInput = document.getElementById('questions_per_iteration');
@@ -29,7 +27,6 @@ function initResearchForm() {
             return response.json();
         })
         .then(data => {
-            console.log('Loaded settings:', data);
             if (data && data.status === 'success' && data.settings) {
                 // Find our specific settings
                 const settings = data.settings;
@@ -41,12 +38,10 @@ function initResearchForm() {
                 for (const key in settings) {
                     const setting = settings[key];
                     if (key === 'search.iterations') {
-                        console.log('Found iterations setting:', setting.value);
                         iterationsInput.value = setting.value;
                     }
 
                     if (key === 'search.questions_per_iteration') {
-                        console.log('Found questions setting:', setting.value);
                         questionsInput.value = setting.value;
                     }
                 }
@@ -56,7 +51,6 @@ function initResearchForm() {
             }
         })
         .catch(error => {
-            console.warn('Error loading research settings:', error);
             // Form will use default values if settings can't be loaded
         });
 
@@ -88,7 +82,6 @@ function saveResearchSettings() {
     const iterations = document.getElementById('iterations').value;
     const questions = document.getElementById('questions_per_iteration').value;
 
-    console.log('Saving research settings:', { iterations, questions });
 
     // Get CSRF token
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -107,10 +100,8 @@ function saveResearchSettings() {
     })
     .then(response => response.json())
     .then(data => {
-        console.log('Settings saved:', data);
     })
     .catch(error => {
-        console.warn('Error saving research settings:', error);
     });
 }
 
@@ -118,13 +109,17 @@ function saveResearchSettings() {
  * Initialize warning system
  */
 function initializeWarnings() {
-    console.log('Initializing warning system...');
 
     // Check warnings on form load
     checkAndDisplayWarnings();
 
     // Monitor form changes for dynamic warnings
     setupWarningListeners();
+
+    // Clear any stale warnings immediately when initializing
+    setTimeout(() => {
+        checkAndDisplayWarnings();
+    }, 100);
 }
 
 /**
@@ -135,7 +130,6 @@ function setupWarningListeners() {
     const providerSelect = document.getElementById('model_provider');
     if (providerSelect) {
         providerSelect.addEventListener('change', function() {
-            console.log('Provider changed to:', providerSelect.value);
             // Wait a bit longer for the saveProviderSetting API call to complete
             setTimeout(refetchSettingsAndUpdateWarnings, 500);
         });
@@ -146,7 +140,6 @@ function setupWarningListeners() {
     if (typeof window.saveProviderSetting === 'function') {
         const originalSaveProviderSetting = window.saveProviderSetting;
         window.saveProviderSetting = function(providerValue) {
-            console.log('Intercepted saveProviderSetting call:', providerValue);
             // Call the original function
             const result = originalSaveProviderSetting.apply(this, arguments);
             // After it completes, refetch settings and update warnings
@@ -155,10 +148,38 @@ function setupWarningListeners() {
         };
     }
 
+    // Monitor search engine changes
+    const searchEngineInput = document.getElementById('search_engine');
+    if (searchEngineInput) {
+        searchEngineInput.addEventListener('change', function() {
+            // Refresh warnings immediately when search engine changes
+            setTimeout(checkAndDisplayWarnings, 100);
+        });
+    }
+
     const strategySelect = document.getElementById('strategy');
     if (strategySelect) {
         strategySelect.addEventListener('change', function() {
-            console.log('Strategy changed to:', strategySelect.value);
+
+            // Save strategy to localStorage
+            localStorage.setItem('lastUsedStrategy', strategySelect.value);
+
+            // Save strategy to database
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+            fetch('/research/settings/api/search.search_strategy', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ value: strategySelect.value })
+            })
+            .then(response => response.json())
+            .then(data => {
+            })
+            .catch(error => {
+            });
+
             setTimeout(checkAndDisplayWarnings, 100);
         });
     }
@@ -167,7 +188,6 @@ function setupWarningListeners() {
     if (typeof io !== 'undefined') {
         const socket = io();
         socket.on('settings_changed', function(data) {
-            console.log('Settings changed via WebSocket:', data);
             // Update global settings cache
             if (data.settings) {
                 Object.assign(globalSettings, data.settings);
@@ -177,7 +197,6 @@ function setupWarningListeners() {
         });
 
         socket.on('connect', function() {
-            console.log('Connected to settings WebSocket');
         });
     }
 }
@@ -186,7 +205,6 @@ function setupWarningListeners() {
  * Refetch settings from the server and update warnings
  */
 function refetchSettingsAndUpdateWarnings() {
-    console.log('Refetching settings from server...');
 
     fetch('/research/settings/api')
         .then(response => {
@@ -196,7 +214,6 @@ function refetchSettingsAndUpdateWarnings() {
             return response.json();
         })
         .then(data => {
-            console.log('Refetched settings:', data);
             if (data && data.status === 'success' && data.settings) {
                 // Update global settings cache
                 globalSettings = data.settings;
@@ -205,21 +222,28 @@ function refetchSettingsAndUpdateWarnings() {
             setTimeout(checkAndDisplayWarnings, 100);
         })
         .catch(error => {
-            console.warn('Error refetching settings:', error);
             // Still try to check warnings from backend
             setTimeout(checkAndDisplayWarnings, 100);
         });
 }
 
+/**
+ * Manually clear all warnings (useful for debugging stale warnings)
+ */
+function clearAllWarnings() {
+    displayWarnings([]);
+}
+
 // Make functions globally available for other scripts
 window.refetchSettingsAndUpdateWarnings = refetchSettingsAndUpdateWarnings;
 window.displayWarnings = displayWarnings;
+window.clearAllWarnings = clearAllWarnings;
+window.checkAndDisplayWarnings = checkAndDisplayWarnings;
 
 /**
  * Check warning conditions by fetching from backend
  */
 function checkAndDisplayWarnings() {
-    console.log('Checking warning conditions from backend...');
 
     // Get warnings from backend API instead of calculating locally
     fetch('/research/settings/api/warnings')
@@ -237,7 +261,6 @@ function checkAndDisplayWarnings() {
             }
         })
         .catch(error => {
-            console.warn('Error fetching warnings from backend:', error);
             // Clear warnings on error
             displayWarnings([]);
         });
@@ -304,7 +327,6 @@ function displayWarnings(warnings) {
  * Dismiss a warning by updating the setting
  */
 function dismissWarning(dismissKey) {
-    console.log('Dismissing warning:', dismissKey);
 
     // Get CSRF token
     const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -322,14 +344,12 @@ function dismissWarning(dismissKey) {
     })
     .then(response => response.json())
     .then(data => {
-        console.log('Warning dismissed:', data);
         // Update global settings cache
         globalSettings[dismissKey] = { value: true };
         // Recheck warnings
         checkAndDisplayWarnings();
     })
     .catch(error => {
-        console.warn('Error dismissing warning:', error);
     });
 }
 

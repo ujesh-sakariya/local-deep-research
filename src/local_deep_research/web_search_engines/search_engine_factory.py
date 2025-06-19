@@ -313,6 +313,7 @@ def get_search(
     logger.info(
         f"Creating search engine for tool: {search_tool} with params: {params.keys()}"
     )
+
     engine = create_search_engine(search_tool, **params)
 
     # Add debugging to check if engine is None

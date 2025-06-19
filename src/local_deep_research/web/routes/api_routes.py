@@ -5,6 +5,7 @@ import requests
 from flask import Blueprint, current_app, jsonify, request
 
 from ...utilities.url_utils import normalize_url
+from ...utilities.db_utils import get_db_session
 from ..models.database import get_db_connection
 from ..routes.research_routes import active_research, termination_flags
 from ..services.research_service import (
@@ -17,10 +18,46 @@ from ..services.resource_service import (
     delete_resource,
     get_resources_for_research,
 )
+from ..services.settings_manager import SettingsManager
 
 # Create blueprint
 api_bp = Blueprint("api", __name__)
 logger = logging.getLogger(__name__)
+
+
+@api_bp.route("/settings/current-config", methods=["GET"])
+def get_current_config():
+    """Get the current configuration from database settings."""
+    try:
+        session = get_db_session()
+        settings_manager = SettingsManager(db_session=session)
+
+        config = {
+            "provider": settings_manager.get_setting(
+                "llm.provider", "Not configured"
+            ),
+            "model": settings_manager.get_setting(
+                "llm.model", "Not configured"
+            ),
+            "search_tool": settings_manager.get_setting(
+                "search.tool", "searxng"
+            ),
+            "iterations": settings_manager.get_setting("search.iterations", 8),
+            "questions_per_iteration": settings_manager.get_setting(
+                "search.questions_per_iteration", 5
+            ),
+            "search_strategy": settings_manager.get_setting(
+                "search.search_strategy", "focused_iteration"
+            ),
+        }
+
+        session.close()
+
+        return jsonify({"success": True, "config": config})
+
+    except Exception as e:
+        logger.exception("Error getting current config")
+        return jsonify({"success": False, "error": "An internal error occurred"}), 500
 
 
 # API Routes
