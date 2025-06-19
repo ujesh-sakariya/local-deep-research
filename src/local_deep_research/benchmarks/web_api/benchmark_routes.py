@@ -768,9 +768,9 @@ def get_search_quality():
             }
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error getting search quality")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
 
 
 @benchmark_bp.route("/api/delete/<int:benchmark_run_id>", methods=["DELETE"])
