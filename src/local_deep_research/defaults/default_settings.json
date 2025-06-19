@@ -4429,7 +4429,7 @@
         "options": null,
         "step": 0.05,
         "type": "APP",
-        "ui_element": "slider",
+        "ui_element": "range",
         "value": 0.1,
         "visible": true
     },
@@ -4443,7 +4443,7 @@
         "options": null,
         "step": 0.05,
         "type": "APP",
-        "ui_element": "slider",
+        "ui_element": "range",
         "value": 0.3,
         "visible": true
     },
@@ -4486,6 +4486,20 @@
         "type": "APP",
         "ui_element": "select",
         "value": "balanced",
+        "visible": true
+    },
+    "rate_limiting.decay_per_day": {
+        "category": "rate_limiting",
+        "description": "Confidence decay factor per day for old rate limit estimates (0.5-0.99, lower = faster decay)",
+        "editable": true,
+        "max_value": 0.99,
+        "min_value": 0.5,
+        "name": "Decay Factor Per Day",
+        "options": null,
+        "step": 0.01,
+        "type": "APP",
+        "ui_element": "range",
+        "value": 0.95,
         "visible": true
     },
     "benchmark.evaluation.provider": {

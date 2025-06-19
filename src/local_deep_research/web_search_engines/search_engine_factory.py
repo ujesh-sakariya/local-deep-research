@@ -314,25 +314,6 @@ def get_search(
         f"Creating search engine for tool: {search_tool} with params: {params.keys()}"
     )
 
-    # Special handling for SearXNG - test basic connectivity
-    if search_tool == "searxng":
-        try:
-            # Test SearXNG basic availability
-            import requests
-
-            response = requests.get("http://localhost:8080/", timeout=5)
-            if response.status_code == 200:
-                logger.info("SearXNG is available and responding")
-            else:
-                logger.warning(
-                    f"SearXNG returned status {response.status_code} - may have connectivity issues"
-                )
-        except Exception as e:
-            logger.warning(
-                f"SearXNG not accessible ({str(e)}) - service may not be running"
-            )
-            logger.warning("SearXNG engine will handle fallbacks internally")
-
     engine = create_search_engine(search_tool, **params)
 
     # Add debugging to check if engine is None

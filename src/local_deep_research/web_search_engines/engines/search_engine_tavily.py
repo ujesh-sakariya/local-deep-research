@@ -188,7 +188,7 @@ class TavilySearchEngine(BaseSearchEngine):
             raise  # Re-raise rate limit errors
         except requests.exceptions.RequestException as e:
             error_msg = str(e)
-            logger.error(f"Error getting Tavily results: {error_msg}")
+            logger.exception("Error getting Tavily results")
 
             # Check for rate limit patterns in error message
             if any(
@@ -203,8 +203,8 @@ class TavilySearchEngine(BaseSearchEngine):
                 raise RateLimitError(f"Tavily rate limit hit: {error_msg}")
 
             return []
-        except Exception as e:
-            logger.error(f"Unexpected error getting Tavily results: {e}")
+        except Exception:
+            logger.exception("Unexpected error getting Tavily results")
             return []
 
     def _get_full_content(
@@ -256,8 +256,8 @@ class TavilySearchEngine(BaseSearchEngine):
 
                 return results_with_content
 
-            except Exception as e:
-                logger.error(f"Error retrieving full content: {e}")
+            except Exception:
+                logger.exception("Error retrieving full content")
                 # Fall back to returning the items without full content
 
         # Return items with their full Tavily information

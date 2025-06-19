@@ -106,9 +106,9 @@ class BenchmarkService:
             )
             return benchmark_run.id
 
-        except Exception as e:
+        except Exception:
             session.rollback()
-            logger.error(f"Error creating benchmark run: {e}")
+            logger.exception("Error creating benchmark run")
             raise
         finally:
             session.close()
@@ -159,8 +159,8 @@ class BenchmarkService:
             )
             return existing_results
 
-        except Exception as e:
-            logger.error(f"Error loading existing results: {e}")
+        except Exception:
+            logger.exception("Error loading existing results")
             return {}
         finally:
             session.close()
@@ -191,7 +191,7 @@ class BenchmarkService:
             return True
 
         except Exception as e:
-            logger.error(f"Error starting benchmark {benchmark_run_id}: {e}")
+            logger.exception(f"Error starting benchmark {benchmark_run_id}")
             self.update_benchmark_status(
                 benchmark_run_id, BenchmarkStatus.FAILED, str(e)
             )
@@ -256,7 +256,7 @@ class BenchmarkService:
                     )
 
                 except Exception as e:
-                    logger.error(f"Error processing task {i}: {e}")
+                    logger.exception(f"Error processing task {i}")
                     benchmark_run.failed_examples += 1
                     session.commit()
 
@@ -299,7 +299,7 @@ class BenchmarkService:
             )
 
         except Exception as e:
-            logger.error(f"Benchmark run {benchmark_run_id} failed: {e}")
+            logger.exception(f"Benchmark run {benchmark_run_id} failed")
             self.update_benchmark_status(
                 benchmark_run_id, BenchmarkStatus.FAILED, str(e)
             )
@@ -430,10 +430,8 @@ class BenchmarkService:
                         progress_data,
                     )
 
-                except Exception as e:
-                    logger.error(
-                        f"Error sending benchmark progress update: {e}"
-                    )
+                except Exception:
+                    logger.exception("Error sending benchmark progress update")
 
             search_result = quick_summary(
                 query=formatted_query,
@@ -550,7 +548,7 @@ class BenchmarkService:
                         )
 
             except Exception as e:
-                logger.error(f"Evaluation error: {e}")
+                logger.exception("Evaluation error")
                 result.update(
                     {
                         "is_correct": None,
@@ -563,7 +561,7 @@ class BenchmarkService:
             return result
 
         except Exception as e:
-            logger.error(f"Research error: {e}")
+            logger.exception("Research error")
             return {
                 **task,
                 "research_error": str(e),
@@ -602,9 +600,9 @@ class BenchmarkService:
             session.add(benchmark_result)
             session.commit()
 
-        except Exception as e:
+        except Exception:
             session.rollback()
-            logger.error(f"Error saving benchmark result: {e}")
+            logger.exception("Error saving benchmark result")
             raise
         finally:
             session.close()
@@ -645,8 +643,8 @@ class BenchmarkService:
                 "research_progress", benchmark_run_id, progress_data
             )
 
-        except Exception as e:
-            logger.error(f"Error sending progress update: {e}")
+        except Exception:
+            logger.exception("Error sending progress update")
 
     def _calculate_final_accuracy(self, benchmark_run_id: int):
         """Calculate and save final accuracy metrics."""
@@ -682,8 +680,8 @@ class BenchmarkService:
                     benchmark_run.processing_rate = processing_rate
                     session.commit()
 
-        except Exception as e:
-            logger.error(f"Error calculating final accuracy: {e}")
+        except Exception:
+            logger.exception("Error calculating final accuracy")
         finally:
             session.close()
 
@@ -723,9 +721,9 @@ class BenchmarkService:
 
                 session.commit()
 
-        except Exception as e:
+        except Exception:
             session.rollback()
-            logger.error(f"Error updating benchmark status: {e}")
+            logger.exception("Error updating benchmark status")
         finally:
             session.close()
 
@@ -895,8 +893,8 @@ class BenchmarkService:
                 "error_message": benchmark_run.error_message,
             }
 
-        except Exception as e:
-            logger.error(f"Error getting benchmark status: {e}")
+        except Exception:
+            logger.exception("Error getting benchmark status")
             return None
         finally:
             session.close()
@@ -913,8 +911,8 @@ class BenchmarkService:
             logger.info(f"Cancelled benchmark run {benchmark_run_id}")
             return True
 
-        except Exception as e:
-            logger.error(f"Error cancelling benchmark {benchmark_run_id}: {e}")
+        except Exception:
+            logger.exception(f"Error cancelling benchmark {benchmark_run_id}")
             return False
 
 

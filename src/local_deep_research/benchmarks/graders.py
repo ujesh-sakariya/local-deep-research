@@ -69,17 +69,12 @@ def get_evaluation_llm(custom_config: Optional[Dict[str, Any]] = None):
         from ..utilities.db_utils import get_db_setting
 
         api_key = get_db_setting("llm.openai_endpoint.api_key")
-        if not api_key:
-            # Fall back to environment variable
-            import os
-
-            api_key = os.getenv("OPENAI_ENDPOINT_API_KEY")
 
         if not api_key:
             logger.warning(
                 "Using openai_endpoint provider but no API key found. "
                 "Set the llm.openai_endpoint.api_key setting in the database or "
-                "OPENAI_ENDPOINT_API_KEY environment variable."
+                "LDR_LLM_OPENAI_ENDPOINT_API_KEY environment variable."
             )
             # Try to fall back to LDR's config if API key not explicitly provided
             # The get_llm function will handle this case

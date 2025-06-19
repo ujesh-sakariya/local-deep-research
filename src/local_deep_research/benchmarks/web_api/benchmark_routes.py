@@ -166,8 +166,8 @@ def start_benchmark():
                 {"success": False, "error": "Failed to start benchmark"}
             ), 500
 
-    except Exception as e:
-        logger.error(f"Error starting benchmark: {e}")
+    except Exception:
+        logger.exception("Error starting benchmark")
         return jsonify(
             {"success": False, "error": "An internal error has occurred."}
         ), 500
@@ -207,8 +207,8 @@ def get_running_benchmark():
                 {"success": False, "message": "No running benchmark found"}
             )
 
-    except Exception as e:
-        logger.error(f"Error checking for running benchmark: {e}")
+    except Exception:
+        logger.exception("Error checking for running benchmark")
         return jsonify(
             {"success": False, "error": "An internal error has occurred."}
         ), 500
@@ -227,8 +227,8 @@ def get_benchmark_status(benchmark_run_id: int):
                 {"success": False, "error": "Benchmark run not found"}
             ), 404
 
-    except Exception as e:
-        logger.error(f"Error getting benchmark status: {e}")
+    except Exception:
+        logger.exception("Error getting benchmark status")
         return jsonify(
             {"success": False, "error": "An internal error has occurred."}
         ), 500
@@ -249,8 +249,8 @@ def cancel_benchmark(benchmark_run_id: int):
                 {"success": False, "error": "Failed to cancel benchmark"}
             ), 500
 
-    except Exception as e:
-        logger.error(f"Error cancelling benchmark: {e}")
+    except Exception:
+        logger.exception("Error cancelling benchmark")
         return jsonify(
             {"success": False, "error": "An internal error has occurred."}
         ), 500
@@ -378,8 +378,8 @@ def get_benchmark_history():
 
         return jsonify({"success": True, "runs": formatted_runs})
 
-    except Exception as e:
-        logger.error(f"Error getting benchmark history: {e}")
+    except Exception:
+        logger.exception("Error getting benchmark history")
         return jsonify(
             {"success": False, "error": "An internal error has occurred."}
         ), 500
@@ -455,9 +455,9 @@ def get_benchmark_results(benchmark_run_id: int):
                     logger.debug(
                         f"Search results by research_id: {dict(list(search_results_by_research_id.items())[:5])}"
                     )
-        except Exception as e:
-            logger.error(
-                f"Error getting search metrics for benchmark {benchmark_run_id}: {e}"
+        except Exception:
+            logger.exception(
+                f"Error getting search metrics for benchmark {benchmark_run_id}"
             )
 
         # Format results for UI display
@@ -478,9 +478,9 @@ def get_benchmark_results(benchmark_run_id: int):
                         f"Found {search_result_count} search results for research_id {result.research_id}"
                     )
 
-            except Exception as e:
-                logger.error(
-                    f"Error getting search results for result {result.example_id}: {e}"
+            except Exception:
+                logger.exception(
+                    f"Error getting search results for result {result.example_id}"
                 )
 
             # Fallback to sources if available and we didn't find metrics
@@ -522,8 +522,8 @@ def get_benchmark_results(benchmark_run_id: int):
 
         return jsonify({"success": True, "results": formatted_results})
 
-    except Exception as e:
-        logger.error(f"Error getting benchmark results: {e}")
+    except Exception:
+        logger.exception("Error getting benchmark results")
         return jsonify(
             {"success": False, "error": "An internal error has occurred."}
         ), 500
@@ -571,7 +571,7 @@ def get_saved_configs():
         return jsonify({"success": True, "configs": default_configs})
 
     except Exception as e:
-        logger.error(f"Error getting saved configs: {e}")
+        logger.exception("Error getting saved configs")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -700,7 +700,7 @@ def start_benchmark_simple():
             ), 500
 
     except Exception as e:
-        logger.error(f"Error starting simple benchmark: {e}")
+        logger.exception("Error starting simple benchmark")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -747,7 +747,7 @@ def validate_config():
         )
 
     except Exception as e:
-        logger.error(f"Error validating config: {e}")
+        logger.exception("Error validating config")
         return jsonify({"valid": False, "errors": [str(e)]}), 500
 
 
@@ -769,7 +769,7 @@ def get_search_quality():
         )
 
     except Exception as e:
-        logger.error(f"Error getting search quality: {e}")
+        logger.exception("Error getting search quality")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -832,5 +832,5 @@ def delete_benchmark_run(benchmark_run_id: int):
         )
 
     except Exception as e:
-        logger.error(f"Error deleting benchmark run {benchmark_run_id}: {e}")
+        logger.exception(f"Error deleting benchmark run {benchmark_run_id}")
         return jsonify({"success": False, "error": str(e)}), 500

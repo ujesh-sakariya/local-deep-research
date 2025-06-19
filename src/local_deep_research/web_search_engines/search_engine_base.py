@@ -258,8 +258,8 @@ class BaseSearchEngine(ABC):
                 # Other errors - don't retry
                 success = False
                 error_message = str(e)
-                logger.error(
-                    f"Search engine {self.__class__.__name__} failed: {e}"
+                logger.exception(
+                    f"Search engine {self.__class__.__name__} failed"
                 )
                 results_count = 0
                 return []
@@ -270,12 +270,14 @@ class BaseSearchEngine(ABC):
             # All retries exhausted
             success = False
             error_message = f"Rate limited after all retries: {e}"
-            logger.error(f"{self.__class__.__name__} failed after all retries")
+            logger.exception(
+                f"{self.__class__.__name__} failed after all retries"
+            )
             return []
         except Exception as e:
             success = False
             error_message = str(e)
-            logger.error(f"Search engine {self.__class__.__name__} error: {e}")
+            logger.exception(f"Search engine {self.__class__.__name__} error")
             return []
         finally:
             # Record search metrics

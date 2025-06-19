@@ -34,7 +34,9 @@ class AdaptiveRateLimitTracker:
         self.learning_rate = float(
             get_db_setting("rate_limiting.learning_rate", 0.3)
         )
-        self.decay_per_day = 0.95  # Keep this internal for now
+        self.decay_per_day = float(
+            get_db_setting("rate_limiting.decay_per_day", 0.95)
+        )
         self.enabled = bool(get_db_setting("rate_limiting.enabled", True))
 
         # Apply rate limiting profile
