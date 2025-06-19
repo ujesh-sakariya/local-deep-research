@@ -831,6 +831,6 @@ def delete_benchmark_run(benchmark_run_id: int):
             }
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception(f"Error deleting benchmark run {benchmark_run_id}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": "An internal error has occurred."}), 500
