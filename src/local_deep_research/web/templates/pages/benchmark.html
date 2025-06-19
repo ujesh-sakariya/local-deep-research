@@ -1578,6 +1578,17 @@ function displayRecentResults(results) {
         return;
     }
 
+    // Save expanded states before re-rendering
+    const expandedStates = {};
+    const allToggles = container.querySelectorAll('[id^="toggle-"]');
+    allToggles.forEach(toggle => {
+        const id = toggle.id.replace('toggle-', '');
+        const fullTextElement = document.getElementById(`full-${id}`);
+        if (fullTextElement && fullTextElement.style.display !== 'none') {
+            expandedStates[id] = true;
+        }
+    });
+
     const resultsHtml = results.map((result, index) => {
         const statusClass = result.is_correct ? 'correct' : 'incorrect';
         const statusIcon = result.is_correct ? '<i class="fas fa-check-circle"></i>' : '<i class="fas fa-times-circle"></i>';
@@ -1590,10 +1601,12 @@ function displayRecentResults(results) {
             if (text.length <= maxLength) return text;
 
             const truncated = text.substring(0, maxLength) + '...';
+            const isExpanded = expandedStates[id] || false;
+
             return `
-                <span id="truncated-${id}">${truncated}</span>
-                <span id="full-${id}" style="display: none;">${text}</span>
-                <a href="#" onclick="toggleText('${id}'); return false;" id="toggle-${id}" style="color: #2196f3; font-size: 0.85rem; margin-left: 5px; text-decoration: underline;">Show more</a>
+                <span id="truncated-${id}" style="display: ${isExpanded ? 'none' : 'inline'};">${truncated}</span>
+                <span id="full-${id}" style="display: ${isExpanded ? 'inline' : 'none'};">${text}</span>
+                <a href="#" onclick="toggleText('${id}'); return false;" id="toggle-${id}" style="color: #2196f3; font-size: 0.85rem; margin-left: 5px; text-decoration: underline;">${isExpanded ? 'Show less' : 'Show more'}</a>
             `;
         };
 
