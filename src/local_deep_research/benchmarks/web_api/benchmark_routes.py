@@ -746,9 +746,9 @@ def validate_config():
             }
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error validating config")
-        return jsonify({"valid": False, "errors": [str(e)]}), 500
+        return jsonify({"valid": False, "errors": ["An internal error has occurred."]}), 500
 
 
 @benchmark_bp.route("/api/search-quality", methods=["GET"])
