@@ -47,14 +47,14 @@ async function testRateLimitingSettings() {
 
         // Navigate to settings page
         console.log('📍 Navigating to settings page...');
-        await page.goto('http://127.0.0.1:5000/research/settings', {
+        await page.goto('http://127.0.0.1:5000/settings/', {
             waitUntil: 'networkidle2',
             timeout: 30000
         });
 
         // Wait for settings to load
         console.log('⏳ Waiting for settings to load...');
-        await page.waitForTimeout(3000);
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
         // Test 1: Check if rate limiting section exists
         console.log('🔍 Test 1: Checking for rate limiting section...');
@@ -82,7 +82,7 @@ async function testRateLimitingSettings() {
 
             // Toggle the checkbox
             await enabledCheckbox.click();
-            await page.waitForTimeout(1000); // Wait for potential API call
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for potential API call
 
             const newState = await page.evaluate(el => el.checked, enabledCheckbox);
             console.log(`📊 After toggle: ${newState ? 'enabled' : 'disabled'}`);
@@ -98,7 +98,8 @@ async function testRateLimitingSettings() {
 
         // Test 3: Check for rate limiting profile selector
         console.log('🔍 Test 3: Checking for rate limiting profile selector...');
-        const profileSelector = await page.$('select[name*="profile"], select[id*="profile"], .profile-selector select');
+        const profileSelectorPath = 'select[name*="profile"], select[id*="profile"], .profile-selector select';
+        const profileSelector = await page.$(profileSelectorPath);
         if (profileSelector) {
             console.log('✅ Rate limiting profile selector found');
 
@@ -110,21 +111,21 @@ async function testRateLimitingSettings() {
 
             // Test selecting different profiles
             if (options.includes('conservative')) {
-                await page.select(profileSelector, 'conservative');
+                await page.select(profileSelectorPath, 'conservative');
                 console.log('✅ Selected conservative profile');
-                await page.waitForTimeout(500);
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
 
             if (options.includes('balanced')) {
-                await page.select(profileSelector, 'balanced');
+                await page.select(profileSelectorPath, 'balanced');
                 console.log('✅ Selected balanced profile');
-                await page.waitForTimeout(500);
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
 
             if (options.includes('aggressive')) {
-                await page.select(profileSelector, 'aggressive');
+                await page.select(profileSelectorPath, 'aggressive');
                 console.log('✅ Selected aggressive profile');
-                await page.waitForTimeout(500);
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         } else {
             console.log('❌ Rate limiting profile selector not found');
@@ -144,7 +145,7 @@ async function testRateLimitingSettings() {
             // Test changing the value
             await input.click({ clickCount: 3 }); // Select all text
             await input.type('0.5');
-            await page.waitForTimeout(300);
+            await new Promise(resolve => setTimeout(resolve, 300));
             console.log(`✅ Updated numeric input ${i + 1}`);
         }
 
@@ -167,13 +168,15 @@ async function testRateLimitingSettings() {
 
         // Test 6: Test save/submit functionality
         console.log('🔍 Test 6: Testing save functionality...');
-        const saveButton = await page.$('button[type="submit"], .save-button, button:contains("Save")');
+        // Use XPath for text content matching
+        const saveButton = await page.$('button[type="submit"], .save-button') ||
+                          await page.$x('//button[contains(text(), "Save")]').then(btns => btns[0]);
         if (saveButton) {
             console.log('✅ Save button found');
 
             const initialRequestCount = apiRequests.length;
             await saveButton.click();
-            await page.waitForTimeout(2000); // Wait for API calls
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for API calls
 
             const newRequestCount = apiRequests.length;
             if (newRequestCount > initialRequestCount) {
@@ -199,7 +202,7 @@ async function testRateLimitingSettings() {
         // Test 9: Responsive design test
         console.log('🔍 Test 9: Testing responsive design...');
         await page.setViewport({ width: 768, height: 1024 }); // Tablet view
-        await page.waitForTimeout(500);
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         const visibleElements = await page.evaluate(() => {
             const elements = document.querySelectorAll('input, select, button');
@@ -212,7 +215,7 @@ async function testRateLimitingSettings() {
         console.log(`📊 Visible form elements in tablet view: ${visibleElements}`);
 
         await page.setViewport({ width: 375, height: 667 }); // Mobile view
-        await page.waitForTimeout(500);
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         const mobileVisibleElements = await page.evaluate(() => {
             const elements = document.querySelectorAll('input, select, button');

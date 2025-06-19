@@ -55,9 +55,11 @@ def get_current_config():
 
         return jsonify({"success": True, "config": config})
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error getting current config")
-        return jsonify({"success": False, "error": "An internal error occurred"}), 500
+        return jsonify(
+            {"success": False, "error": "An internal error occurred"}
+        ), 500
 
 
 # API Routes
@@ -90,7 +92,7 @@ def api_start_research():
         }
 
         cursor.execute(
-            "INSERT INTO research_history (query, mode, status, created_at, progress_log, metadata) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO research_history (query, mode, status, created_at, progress_log, research_meta) VALUES (?, ?, ?, ?, ?, ?)",
             (
                 query,
                 mode,
@@ -137,39 +139,31 @@ def api_research_status(research_id):
     Get the status of a research process
     """
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT status, progress, completed_at, report_path, metadata FROM research_history WHERE id = ?",
-            (research_id,),
-        )
-        result = cursor.fetchone()
-        conn.close()
+        from ..database.models import ResearchHistory
 
-        if result is None:
-            return jsonify({"error": "Research not found"}), 404
+        db_session = get_db_session()
+        with db_session:
+            research = (
+                db_session.query(ResearchHistory)
+                .filter_by(id=research_id)
+                .first()
+            )
 
-        status, progress, completed_at, report_path, metadata_str = result
+            if research is None:
+                return jsonify({"error": "Research not found"}), 404
 
-        # Parse metadata if it exists
-        metadata = {}
-        if metadata_str:
-            try:
-                metadata = json.loads(metadata_str)
-            except json.JSONDecodeError:
-                logger.warning(
-                    f"Invalid JSON in metadata for research {research_id}"
-                )
+            # Get metadata
+            metadata = research.research_meta or {}
 
-        return jsonify(
-            {
-                "status": status,
-                "progress": progress,
-                "completed_at": completed_at,
-                "report_path": report_path,
-                "metadata": metadata,
-            }
-        )
+            return jsonify(
+                {
+                    "status": research.status,
+                    "progress": research.progress,
+                    "completed_at": research.completed_at,
+                    "report_path": research.report_path,
+                    "metadata": metadata,
+                }
+            )
     except Exception as e:
         logger.error(f"Error getting research status: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
