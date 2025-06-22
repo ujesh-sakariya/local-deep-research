@@ -2644,7 +2644,11 @@
         console.log('Fetching model providers from API');
 
         // Create a promise and store it
-        window.modelProvidersRequestInProgress = fetch(URLS.SETTINGS_API.AVAILABLE_MODELS)
+        const url = forceRefresh
+            ? `${URLS.SETTINGS_API.AVAILABLE_MODELS}?force_refresh=true`
+            : URLS.SETTINGS_API.AVAILABLE_MODELS;
+
+        window.modelProvidersRequestInProgress = fetch(url)
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`API returned status: ${response.status}`);

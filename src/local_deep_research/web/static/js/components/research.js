@@ -148,6 +148,9 @@
         populateModelProviders();
         initializeDropdowns();
 
+        // Also set initial values here for immediate feedback
+        setInitialFormValues();
+
         // Auto-focus the query input
         if (queryInput) {
             queryInput.focus();
@@ -158,14 +161,17 @@
         }
 
         // Set initial state of the advanced options panel based on localStorage
-        const savedState = false; // Always start collapsed
+        const savedState = localStorage.getItem('advancedMenuOpen') === 'true';
         if (savedState && advancedPanel) {
             advancedPanel.style.display = 'block';
             advancedPanel.classList.add('expanded');
             if (advancedToggle) {
                 advancedToggle.classList.add('open');
+                advancedToggle.setAttribute('aria-expanded', 'true');
                 const icon = advancedToggle.querySelector('i');
                 if (icon) icon.className = 'fas fa-chevron-up';
+                const srText = advancedToggle.querySelector('.sr-only');
+                if (srText) srText.textContent = 'Click to collapse advanced options';
             }
         }
 
@@ -175,7 +181,7 @@
             loadSearchEngineOptions(false)
         ]).then(([modelData, searchEngineData]) => {
             // After loading model data, update the UI with the loaded data
-            const currentProvider = modelProviderSelect ? modelProviderSelect.value : (lastProvider || 'OLLAMA');
+            const currentProvider = modelProviderSelect ? modelProviderSelect.value : 'OLLAMA';
             updateModelOptionsForProvider(currentProvider, false);
 
             // Update search engine options
@@ -228,10 +234,16 @@
                 }
             }
 
+            // Set initial form values from data attributes
+            setInitialFormValues();
+
             // Finally, load settings after data is available
             loadSettings();
         }).catch(error => {
             console.error('Failed to load options:', error);
+
+            // Set initial form values even if data loading fails
+            setInitialFormValues();
 
             // Still load settings even if data loading fails
             loadSettings();
@@ -397,6 +409,65 @@
     }
 
     /**
+     * Set initial form values from data attributes
+     */
+    function setInitialFormValues() {
+        console.log('Setting initial form values...');
+
+        // Set initial model value if available
+        if (modelInput) {
+            const initialModel = modelInput.getAttribute('data-initial-value');
+            console.log('Initial model value from data attribute:', initialModel);
+            if (initialModel) {
+                // Find the matching model in the options
+                const matchingModel = modelOptions.find(m =>
+                    m.value === initialModel || m.id === initialModel
+                );
+
+                if (matchingModel) {
+                    modelInput.value = matchingModel.label;
+                    selectedModelValue = matchingModel.value;
+                } else {
+                    // If not found in options, set it as custom value
+                    modelInput.value = initialModel;
+                    selectedModelValue = initialModel;
+                }
+
+                // Update hidden input
+                const hiddenInput = document.getElementById('model_hidden');
+                if (hiddenInput) {
+                    hiddenInput.value = selectedModelValue;
+                }
+            }
+        }
+
+        // Set initial search engine value if available
+        if (searchEngineInput) {
+            const initialSearchEngine = searchEngineInput.getAttribute('data-initial-value');
+            if (initialSearchEngine) {
+                // Find the matching search engine in the options
+                const matchingEngine = searchEngineOptions.find(e =>
+                    e.value === initialSearchEngine || e.id === initialSearchEngine
+                );
+
+                if (matchingEngine) {
+                    searchEngineInput.value = matchingEngine.label;
+                    selectedSearchEngineValue = matchingEngine.value;
+                } else {
+                    searchEngineInput.value = initialSearchEngine;
+                    selectedSearchEngineValue = initialSearchEngine;
+                }
+
+                // Update hidden input
+                const hiddenInput = document.getElementById('search_engine_hidden');
+                if (hiddenInput) {
+                    hiddenInput.value = selectedSearchEngineValue;
+                }
+            }
+        }
+    }
+
+    /**
      * Setup event listeners
      */
     function setupEventListeners() {
@@ -405,23 +476,19 @@
         // INITIALIZE ADVANCED OPTIONS FIRST - before any async operations
         // Advanced options toggle - make immediately responsive
         if (advancedToggle && advancedPanel) {
-            // Set initial state based on localStorage, relying only on CSS classes
-            const savedState = false; // Always start collapsed
+            // Set initial state based on localStorage
+            const savedState = localStorage.getItem('advancedMenuOpen') === 'true';
 
             if (savedState) {
                 advancedToggle.classList.add('open');
                 advancedPanel.classList.add('expanded');
-
-                // Update ARIA attributes
                 advancedToggle.setAttribute('aria-expanded', 'true');
 
-                // Update screen reader text
                 const srText = advancedToggle.querySelector('.sr-only');
                 if (srText) {
                     srText.textContent = 'Click to collapse advanced options';
                 }
 
-                // Update icon immediately
                 const icon = advancedToggle.querySelector('i');
                 if (icon) {
                     icon.className = 'fas fa-chevron-up';
@@ -429,17 +496,13 @@
             } else {
                 advancedToggle.classList.remove('open');
                 advancedPanel.classList.remove('expanded');
-
-                // Update ARIA attributes
                 advancedToggle.setAttribute('aria-expanded', 'false');
 
-                // Update screen reader text
                 const srText = advancedToggle.querySelector('.sr-only');
                 if (srText) {
                     srText.textContent = 'Click to expand advanced options';
                 }
 
-                // Ensure icon is correct
                 const icon = advancedToggle.querySelector('i');
                 if (icon) {
                     icon.className = 'fas fa-chevron-down';
@@ -462,7 +525,7 @@
                 }
 
                 // Save state to localStorage
-                // Don't save to localStorage, let server handle state
+                localStorage.setItem('advancedMenuOpen', isOpen.toString());
 
                 // Update icon
                 const icon = this.querySelector('i');
@@ -678,11 +741,21 @@
             modelProviderSelect.appendChild(option);
         });
 
-        // Default to Ollama
-        modelProviderSelect.value = 'OLLAMA';
+        // Set initial value from data attribute or default to Ollama
+        const initialProvider = modelProviderSelect.getAttribute('data-initial-value') || 'OLLAMA';
+        console.log('Initial provider from data attribute:', initialProvider);
+        modelProviderSelect.value = initialProvider.toUpperCase();
+
+        // Show custom endpoint input if OpenAI endpoint is selected
+        if (endpointContainer) {
+            console.log('Setting endpoint container display for provider:', initialProvider.toUpperCase());
+            endpointContainer.style.display = initialProvider.toUpperCase() === 'OPENAI_ENDPOINT' ? 'block' : 'none';
+        } else {
+            console.warn('Endpoint container not found');
+        }
 
         // Initial update of model options
-        updateModelOptionsForProvider('OLLAMA');
+        updateModelOptionsForProvider(initialProvider.toUpperCase());
     }
 
     /**
@@ -1489,7 +1562,11 @@
             }
 
             // Fetch from API if cache is invalid or refresh is forced
-            fetch(URLS.SETTINGS_API.AVAILABLE_MODELS)
+            const url = forceRefresh
+                ? `${URLS.SETTINGS_API.AVAILABLE_MODELS}?force_refresh=true`
+                : URLS.SETTINGS_API.AVAILABLE_MODELS;
+
+            fetch(url)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`API error: ${response.status}`);
@@ -1627,13 +1704,22 @@
         ];
     }
 
-    // Don't cache data - always use fresh from API
+    // In-memory cache to avoid excessive API calls within a session
+    const memoryCache = {};
+    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
     function cacheData(key, data) {
-        // No-op - we don't cache anymore
+        memoryCache[key] = {
+            data: data,
+            timestamp: Date.now()
+        };
     }
 
     function getCachedData(key) {
-        // No cache - always return null to force API fetch
+        const cached = memoryCache[key];
+        if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
+            return cached.data;
+        }
         return null;
     }
 
