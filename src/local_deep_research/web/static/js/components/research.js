@@ -139,28 +139,9 @@
         advancedToggle = document.querySelector('.advanced-options-toggle');
         advancedPanel = document.querySelector('.advanced-options-panel');
 
-        // First, try to load settings from localStorage for immediate display
-        const lastProvider = localStorage.getItem('lastUsedProvider');
-        const lastModel = localStorage.getItem('lastUsedModel');
-        const lastSearchEngine = localStorage.getItem('lastUsedSearchEngine');
-        const lastStrategy = localStorage.getItem('lastUsedStrategy') || 'source-based';
-
-
-        // Apply local storage values if available
-        if (lastProvider && modelProviderSelect) {
-            console.log('Setting provider from localStorage:', lastProvider);
-            modelProviderSelect.value = lastProvider;
-            // Show/hide endpoint container as needed
-            if (endpointContainer) {
-                endpointContainer.style.display = lastProvider === 'OPENAI_ENDPOINT' ? 'block' : 'none';
-            }
-        }
-
-        // Apply saved strategy
-        const strategySelect = document.getElementById('strategy');
-        if (strategySelect && lastStrategy) {
-            strategySelect.value = lastStrategy;
-        }
+        // Note: Settings are now loaded from the database via the template
+        // The form values are already set by the server-side rendering
+        // We just need to initialize the UI components
 
         // Initialize the UI first (immediate operations)
         setupEventListeners();
@@ -177,7 +158,7 @@
         }
 
         // Set initial state of the advanced options panel based on localStorage
-        const savedState = localStorage.getItem('advancedOptionsOpen') === 'true';
+        const savedState = false; // Always start collapsed
         if (savedState && advancedPanel) {
             advancedPanel.style.display = 'block';
             advancedPanel.classList.add('expanded');
@@ -425,7 +406,7 @@
         // Advanced options toggle - make immediately responsive
         if (advancedToggle && advancedPanel) {
             // Set initial state based on localStorage, relying only on CSS classes
-            const savedState = localStorage.getItem('advancedOptionsOpen') === 'true';
+            const savedState = false; // Always start collapsed
 
             if (savedState) {
                 advancedToggle.classList.add('open');
@@ -481,7 +462,7 @@
                 }
 
                 // Save state to localStorage
-                localStorage.setItem('advancedOptionsOpen', isOpen);
+                // Don't save to localStorage, let server handle state
 
                 // Update icon
                 const icon = this.querySelector('i');
@@ -951,7 +932,7 @@
             console.log(`Updated model options for provider ${provider}: ${modelOptions.length} models`);
 
         // Check for stored last model before deciding what to select
-            let lastSelectedModel = localStorage.getItem('lastUsedModel');
+            let lastSelectedModel = null; // Don't use localStorage
 
             // Also check the database setting
             fetch(URLS.SETTINGS_API.LLM_MODEL, {
@@ -1245,7 +1226,7 @@
                         console.log('Found matching provider option:', matchingOption.value);
                         modelProviderSelect.value = matchingOption.value;
                         // Also save to localStorage
-                        localStorage.setItem('lastUsedProvider', matchingOption.value);
+                        // Provider saved to DB: matchingOption.value);
                     } else {
                         // If no match, try to find case-insensitive or partial match
                         const caseInsensitiveMatch = Array.from(modelProviderSelect.options).find(
@@ -1257,7 +1238,7 @@
                             console.log('Found case-insensitive provider match:', caseInsensitiveMatch.value);
                             modelProviderSelect.value = caseInsensitiveMatch.value;
                             // Also save to localStorage
-                            localStorage.setItem('lastUsedProvider', caseInsensitiveMatch.value);
+                            // Provider saved to DB: caseInsensitiveMatch.value);
                         } else {
                             console.warn(`No matching provider option found for '${providerValue}'`);
                         }
@@ -1288,7 +1269,7 @@
                         console.log('Setting model to:', modelValue);
 
                         // Save to localStorage
-                        localStorage.setItem('lastUsedModel', modelValue);
+                        // Model saved to DB
 
                         // Find the model in our loaded options
                         const matchingModel = modelOptions.find(m =>
@@ -1330,7 +1311,7 @@
                     console.log('Setting search engine to:', engineValue);
 
                     // Save to localStorage
-                    localStorage.setItem('lastUsedSearchEngine', engineValue);
+                    // Search engine saved to DB
 
                     // Find the engine in our loaded options
                     const matchingEngine = searchEngineOptions.find(e =>
@@ -1409,7 +1390,7 @@
                     strategySelect.value = strategyValue;
 
                     // Save to localStorage
-                    localStorage.setItem('lastUsedStrategy', strategyValue);
+                    // Strategy saved to DB
                 }
 
                 numApiCallsPending--;
@@ -1419,7 +1400,7 @@
                 console.error('Error loading strategy:', error);
 
                 // Fallback to localStorage
-                const lastStrategy = localStorage.getItem('lastUsedStrategy');
+                const lastStrategy = null; // Strategy loaded from DB
                 const strategySelect = document.getElementById('strategy');
                 if (lastStrategy && strategySelect) {
                     strategySelect.value = lastStrategy;
@@ -1432,9 +1413,10 @@
 
     // Add a fallback function to use localStorage settings
     function fallbackToLocalStorageSettings() {
-        const provider = localStorage.getItem('lastUsedProvider');
-        const model = localStorage.getItem('lastUsedModel');
-        const searchEngine = localStorage.getItem('lastUsedSearchEngine');
+        // Settings are loaded from database, not localStorage
+        const provider = null;
+        const model = null;
+        const searchEngine = null;
 
         console.log('Falling back to localStorage settings:', { provider, model, searchEngine });
 
@@ -1645,23 +1627,14 @@
         ];
     }
 
-    // Cache and retrieve data in localStorage
+    // Don't cache data - always use fresh from API
     function cacheData(key, data) {
-        try {
-            localStorage.setItem(key, JSON.stringify(data));
-        } catch (e) {
-            console.error('Error caching data:', e);
-        }
+        // No-op - we don't cache anymore
     }
 
     function getCachedData(key) {
-        try {
-            const item = localStorage.getItem(key);
-            return item ? JSON.parse(item) : null;
-        } catch (e) {
-            console.error('Error retrieving cached data:', e);
-            return null;
-        }
+        // No cache - always return null to force API fetch
+        return null;
     }
 
     // Load search engine options
@@ -1806,8 +1779,7 @@
 
     // Save model settings to database
     function saveModelSettings(modelValue) {
-        // Save selection to localStorage for persistence between sessions
-        localStorage.setItem('lastUsedModel', modelValue);
+        // Only save to database, not localStorage
 
         // Update any hidden input with the same settings key that might exist in other forms
         const hiddenInputs = document.querySelectorAll('input[id$="_hidden"][name="llm.model"]');
@@ -1845,8 +1817,7 @@
 
     // Save search engine settings to database
     function saveSearchEngineSettings(engineValue) {
-        // Save to localStorage
-        localStorage.setItem('lastUsedSearchEngine', engineValue);
+        // Only save to database, not localStorage
 
         // Update any hidden input with the same settings key that might exist in other forms
         const hiddenInputs = document.querySelectorAll('input[id$="_hidden"][name="search.tool"]');
@@ -1884,8 +1855,7 @@
 
     // Save provider setting to database
     function saveProviderSetting(providerValue) {
-        // Save to localStorage
-        localStorage.setItem('lastUsedProvider', providerValue);
+        // Only save to database, not localStorage
 
         // Update any hidden input with the same settings key that might exist in other forms
         const hiddenInputs = document.querySelectorAll('input[id$="_hidden"][name="llm.provider"]');
@@ -2042,12 +2012,7 @@
                 console.log('Research started successfully:', data);
 
                 // Store research preferences in localStorage
-                localStorage.setItem('lastResearchMode', mode);
-                localStorage.setItem('lastModelProvider', modelProvider);
-                localStorage.setItem('lastModel', model);
-                localStorage.setItem('lastSearchEngine', searchEngine);
-                localStorage.setItem('enableNotifications', enableNotifications);
-                localStorage.setItem('lastUsedStrategy', strategy);
+                // Settings are saved to database via the API, not localStorage
 
                 // Redirect to the progress page
                 window.location.href = URLBuilder.progressPage(data.research_id);

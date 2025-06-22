@@ -180,8 +180,22 @@ def register_blueprints(app):
     def index():
         """Root route - serve the research page directly"""
         from .utils.templates import render_template_with_defaults
+        from ..utilities.db_utils import get_db_setting
 
-        return render_template_with_defaults("pages/research.html")
+        # Load current settings from database
+        settings = {
+            "llm_provider": get_db_setting("llm.provider", "ollama"),
+            "llm_model": get_db_setting("llm.model", ""),
+            "search_tool": get_db_setting("search.tool", ""),
+            "search_iterations": get_db_setting("search.iterations", 2),
+            "search_questions_per_iteration": get_db_setting(
+                "search.questions_per_iteration", 3
+            ),
+        }
+
+        return render_template_with_defaults(
+            "pages/research.html", settings=settings
+        )
 
     # Register blueprints
     app.register_blueprint(research_bp)
