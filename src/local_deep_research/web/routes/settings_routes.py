@@ -1267,7 +1267,7 @@ def api_get_available_models():
         logger.info(f"Final Anthropic models count: {len(anthropic_models)}")
 
         # Save fetched models to database cache
-        if force_refresh or not providers:
+        if force_refresh or providers:
             # We fetched fresh data, save it to database
             try:
                 from datetime import datetime
@@ -1301,8 +1301,8 @@ def api_get_available_models():
                 db_session.commit()
                 logger.info("Successfully cached models to database")
 
-            except Exception as e:
-                logger.error(f"Error saving models to database cache: {e}")
+            except Exception:
+                logger.exception("Error saving models to database cache")
                 db_session.rollback()
 
         # Return all options
@@ -1943,12 +1943,18 @@ def get_bulk_settings():
                 result[key] = {"value": value, "exists": value is not None}
             except Exception as e:
                 logger.warning(f"Error getting setting {key}: {e}")
-                result[key] = {"value": None, "exists": False, "error": str(e)}
+                result[key] = {
+                    "value": None,
+                    "exists": False,
+                    "error": "Failed to retrieve setting",
+                }
 
         session.close()
 
         return jsonify({"success": True, "settings": result})
 
-    except Exception as e:
+    except Exception:
         logger.exception("Error getting bulk settings")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify(
+            {"success": False, "error": "An internal error occurred"}
+        ), 500
