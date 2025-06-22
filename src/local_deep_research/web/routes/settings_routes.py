@@ -7,7 +7,6 @@ from typing import Any, Optional, Tuple
 import requests
 from flask import (
     Blueprint,
-    current_app,
     flash,
     jsonify,
     redirect,
@@ -16,9 +15,8 @@ from flask import (
 )
 from flask_wtf.csrf import generate_csrf
 from loguru import logger
-from sqlalchemy.orm import Session
 
-from ...utilities.db_utils import get_db_setting
+from ...utilities.db_utils import get_db_setting, get_db_session
 from ...utilities.url_utils import normalize_url
 from ..database.models import Setting, SettingType
 from ..services.settings_service import (
@@ -27,18 +25,89 @@ from ..services.settings_service import (
     get_settings_manager,
     set_setting,
 )
+from ..services.settings_manager import SettingsManager
 from ..utils.templates import render_template_with_defaults
 
 # Create a Blueprint for settings
-settings_bp = Blueprint("settings", __name__, url_prefix="/research/settings")
+settings_bp = Blueprint("settings", __name__, url_prefix="/settings")
 
 
-def get_db_session() -> Session:
-    """Get the database session from the app context"""
-    if hasattr(current_app, "db_session"):
-        return current_app.db_session
-    else:
-        return current_app.extensions["sqlalchemy"].session()
+def calculate_warnings():
+    """Calculate current warning conditions based on settings"""
+    warnings = []
+
+    try:
+        # Get a fresh database session for safety
+        db_session = get_db_session()
+
+        # Get current settings
+        provider = get_setting("llm.provider", "ollama", db_session).lower()
+        local_context = get_setting(
+            "llm.local_context_window_size", 4096, db_session
+        )
+
+        logger.debug(f"Starting warning calculation - provider={provider}")
+
+        # Get dismissal settings
+        dismiss_high_context = get_setting(
+            "app.warnings.dismiss_high_context", False, db_session
+        )
+
+        # Check warning conditions
+        is_local_provider = provider in [
+            "ollama",
+            "llamacpp",
+            "lmstudio",
+            "vllm",
+        ]
+
+        # High context warning for local providers
+        if (
+            is_local_provider
+            and local_context > 8192
+            and not dismiss_high_context
+        ):
+            warnings.append(
+                {
+                    "type": "high_context",
+                    "icon": "⚠️",
+                    "title": "High Context Warning",
+                    "message": f"Context size ({local_context:,} tokens) may cause memory issues with {provider}. Increase VRAM or reduce context size if you experience slowdowns.",
+                    "dismissKey": "app.warnings.dismiss_high_context",
+                }
+            )
+
+        # Get additional warning settings
+        dismiss_model_mismatch = get_setting(
+            "app.warnings.dismiss_model_mismatch", False, db_session
+        )
+
+        # Get current strategy and model (these need to be passed from the frontend or retrieved differently)
+        # For now, we'll implement basic warnings that don't require form state
+
+        # Model mismatch warning (simplified - checking setting instead of form value)
+        current_model = get_setting("llm.model", "", db_session)
+        if (
+            current_model
+            and "70b" in current_model.lower()
+            and is_local_provider
+            and local_context > 8192
+            and not dismiss_model_mismatch
+        ):
+            warnings.append(
+                {
+                    "type": "model_mismatch",
+                    "icon": "🧠",
+                    "title": "Model & Context Warning",
+                    "message": f"Large model ({current_model}) with high context ({local_context:,}) may exceed VRAM. Consider reducing context size or upgrading GPU memory.",
+                    "dismissKey": "app.warnings.dismiss_model_mismatch",
+                }
+            )
+
+    except Exception as e:
+        logger.warning(f"Error calculating warnings: {e}")
+
+    return warnings
 
 
 def validate_setting(
@@ -340,15 +409,37 @@ def save_all_settings():
             # Multiple settings or generic message
             success_message = f"Settings saved successfully ({len(updated_settings)} updated, {len(created_settings)} created)"
 
-        return jsonify(
-            {
-                "status": "success",
-                "message": success_message,
-                "updated": updated_settings,
-                "created": created_settings,
-                "settings": all_settings,
-            }
-        )
+        # Check if any warning-affecting settings were changed and include warnings
+        response_data = {
+            "status": "success",
+            "message": success_message,
+            "updated": updated_settings,
+            "created": created_settings,
+            "settings": all_settings,
+        }
+
+        warning_affecting_keys = [
+            "llm.provider",
+            "search.tool",
+            "search.iterations",
+            "search.questions_per_iteration",
+            "llm.local_context_window_size",
+            "llm.context_window_unrestricted",
+            "llm.context_window_size",
+        ]
+
+        # Check if any warning-affecting settings were changed
+        if any(
+            key in warning_affecting_keys
+            for key in updated_settings + created_settings
+        ):
+            warnings = calculate_warnings()
+            response_data["warnings"] = warnings
+            logger.info(
+                f"Bulk settings update affected warning keys, calculated {len(warnings)} warnings"
+            )
+
+        return jsonify(response_data)
 
     except Exception:
         logger.exception("Error saving settings")
@@ -511,9 +602,29 @@ def api_update_setting(key):
             # Update setting
             success = set_setting(key, value)
             if success:
-                return jsonify(
-                    {"message": f"Setting {key} updated successfully"}
-                )
+                response_data = {
+                    "message": f"Setting {key} updated successfully"
+                }
+
+                # If this is a key that affects warnings, include warning calculations
+                warning_affecting_keys = [
+                    "llm.provider",
+                    "search.tool",
+                    "search.iterations",
+                    "search.questions_per_iteration",
+                    "llm.local_context_window_size",
+                    "llm.context_window_unrestricted",
+                    "llm.context_window_size",
+                ]
+
+                if key in warning_affecting_keys:
+                    warnings = calculate_warnings()
+                    response_data["warnings"] = warnings
+                    logger.debug(
+                        f"Setting {key} changed to {value}, calculated {len(warnings)} warnings"
+                    )
+
+                return jsonify(response_data)
             else:
                 return jsonify(
                     {"error": f"Failed to update setting {key}"}
@@ -669,6 +780,15 @@ def api_get_ui_elements():
 def api_get_available_models():
     """Get available LLM models from various providers"""
     try:
+        from datetime import datetime, timedelta
+        from ..database.models import ProviderModel
+        from flask import request, current_app
+
+        # Check if force_refresh is requested
+        force_refresh = (
+            request.args.get("force_refresh", "false").lower() == "true"
+        )
+
         # Define provider options with generic provider names
         provider_options = [
             {"value": "OLLAMA", "label": "Ollama (Local)"},
@@ -682,6 +802,56 @@ def api_get_available_models():
 
         # Available models by provider
         providers = {}
+
+        # Check database cache first (unless force_refresh is True)
+        if not force_refresh:
+            try:
+                db_session = current_app.db_session
+
+                # Define cache expiration (24 hours)
+                cache_expiry = datetime.utcnow() - timedelta(hours=24)
+
+                # Get cached models from database
+                cached_models = (
+                    db_session.query(ProviderModel)
+                    .filter(ProviderModel.last_updated > cache_expiry)
+                    .all()
+                )
+
+                if cached_models:
+                    logger.info(
+                        f"Found {len(cached_models)} cached models in database"
+                    )
+
+                    # Group models by provider
+                    for model in cached_models:
+                        provider_key = f"{model.provider.lower()}_models"
+                        if provider_key not in providers:
+                            providers[provider_key] = []
+
+                        providers[provider_key].append(
+                            {
+                                "value": model.model_key,
+                                "label": model.model_label,
+                                "provider": model.provider.upper(),
+                            }
+                        )
+
+                    # If we have cached data for all providers, return it
+                    if providers:
+                        logger.info("Returning cached models from database")
+                        return jsonify(
+                            {
+                                "provider_options": provider_options,
+                                "providers": providers,
+                            }
+                        )
+
+            except Exception as e:
+                logger.warning(
+                    f"Error reading cached models from database: {e}"
+                )
+                # Continue to fetch fresh data
 
         # Try to get Ollama models
         ollama_models = []
@@ -1095,6 +1265,45 @@ def api_get_available_models():
         # Set anthropic_models in providers (could be empty if API call failed)
         providers["anthropic_models"] = anthropic_models
         logger.info(f"Final Anthropic models count: {len(anthropic_models)}")
+
+        # Save fetched models to database cache
+        if force_refresh or providers:
+            # We fetched fresh data, save it to database
+            try:
+                from datetime import datetime
+
+                db_session = current_app.db_session
+
+                # Clear old cache entries for providers we're updating
+                for provider_key in providers.keys():
+                    provider_name = provider_key.replace("_models", "").upper()
+                    db_session.query(ProviderModel).filter(
+                        ProviderModel.provider == provider_name
+                    ).delete()
+
+                # Insert new models
+                for provider_key, models in providers.items():
+                    provider_name = provider_key.replace("_models", "").upper()
+                    for model in models:
+                        if (
+                            isinstance(model, dict)
+                            and "value" in model
+                            and "label" in model
+                        ):
+                            new_model = ProviderModel(
+                                provider=provider_name,
+                                model_key=model["value"],
+                                model_label=model["label"],
+                                last_updated=datetime.utcnow(),
+                            )
+                            db_session.add(new_model)
+
+                db_session.commit()
+                logger.info("Successfully cached models to database")
+
+            except Exception:
+                logger.exception("Error saving models to database cache")
+                db_session.rollback()
 
         # Return all options
         return jsonify(
@@ -1565,6 +1774,17 @@ def fix_corrupted_settings():
         )
 
 
+@settings_bp.route("/api/warnings", methods=["GET"])
+def api_get_warnings():
+    """Get current warnings based on settings"""
+    try:
+        warnings = calculate_warnings()
+        return jsonify({"warnings": warnings})
+    except Exception as e:
+        logger.exception("Error getting warnings")
+        return jsonify({"error": str(e)}), 500
+
+
 @settings_bp.route("/api/ollama-status", methods=["GET"])
 def check_ollama_status():
     """Check if Ollama is running and available"""
@@ -1598,3 +1818,143 @@ def check_ollama_status():
     except requests.exceptions.RequestException as e:
         logger.exception("Ollama check failed")
         return jsonify({"running": False, "error": str(e)})
+
+
+@settings_bp.route("/api/rate-limiting/status", methods=["GET"])
+def api_get_rate_limiting_status():
+    """Get current rate limiting status and statistics"""
+    try:
+        from ...web_search_engines.rate_limiting import get_tracker
+
+        tracker = get_tracker()
+
+        # Get basic status
+        status = {
+            "enabled": tracker.enabled,
+            "exploration_rate": tracker.exploration_rate,
+            "learning_rate": tracker.learning_rate,
+            "memory_window": tracker.memory_window,
+        }
+
+        # Get engine statistics
+        engine_stats = tracker.get_stats()
+        engines = []
+
+        for stat in engine_stats:
+            (
+                engine_type,
+                base_wait,
+                min_wait,
+                max_wait,
+                last_updated,
+                total_attempts,
+                success_rate,
+            ) = stat
+            engines.append(
+                {
+                    "engine_type": engine_type,
+                    "base_wait_seconds": round(base_wait, 2),
+                    "min_wait_seconds": round(min_wait, 2),
+                    "max_wait_seconds": round(max_wait, 2),
+                    "last_updated": last_updated,
+                    "total_attempts": total_attempts,
+                    "success_rate": round(success_rate * 100, 1)
+                    if success_rate
+                    else 0.0,
+                }
+            )
+
+        return jsonify({"status": status, "engines": engines})
+
+    except Exception:
+        logger.exception("Error getting rate limiting status")
+        return jsonify({"error": "An internal error occurred"}), 500
+
+
+@settings_bp.route(
+    "/api/rate-limiting/engines/<engine_type>/reset", methods=["POST"]
+)
+def api_reset_engine_rate_limiting(engine_type):
+    """Reset rate limiting data for a specific engine"""
+    try:
+        from ...web_search_engines.rate_limiting import get_tracker
+
+        tracker = get_tracker()
+        tracker.reset_engine(engine_type)
+
+        return jsonify(
+            {"message": f"Rate limiting data reset for {engine_type}"}
+        )
+
+    except Exception:
+        logger.exception(f"Error resetting rate limiting for {engine_type}")
+        return jsonify({"error": "An internal error occurred"}), 500
+
+
+@settings_bp.route("/api/rate-limiting/cleanup", methods=["POST"])
+def api_cleanup_rate_limiting():
+    """Clean up old rate limiting data"""
+    try:
+        from ...web_search_engines.rate_limiting import get_tracker
+
+        days = request.json.get("days", 30) if request.is_json else 30
+
+        tracker = get_tracker()
+        tracker.cleanup_old_data(days)
+
+        return jsonify(
+            {"message": f"Cleaned up rate limiting data older than {days} days"}
+        )
+
+    except Exception:
+        logger.exception("Error cleaning up rate limiting data")
+        return jsonify({"error": "An internal error occurred"}), 500
+
+
+@settings_bp.route("/api/bulk", methods=["GET"])
+def get_bulk_settings():
+    """Get multiple settings at once for performance."""
+    try:
+        # Get requested settings from query parameters
+        requested = request.args.getlist("keys[]")
+        if not requested:
+            # Default to common settings if none specified
+            requested = [
+                "llm.provider",
+                "llm.model",
+                "search.tool",
+                "search.iterations",
+                "search.questions_per_iteration",
+                "search.search_strategy",
+                "benchmark.evaluation.provider",
+                "benchmark.evaluation.model",
+                "benchmark.evaluation.temperature",
+                "benchmark.evaluation.endpoint_url",
+            ]
+
+        # Fetch all settings at once
+        session = get_db_session()
+        settings_manager = SettingsManager(db_session=session)
+
+        result = {}
+        for key in requested:
+            try:
+                value = settings_manager.get_setting(key)
+                result[key] = {"value": value, "exists": value is not None}
+            except Exception as e:
+                logger.warning(f"Error getting setting {key}: {e}")
+                result[key] = {
+                    "value": None,
+                    "exists": False,
+                    "error": "Failed to retrieve setting",
+                }
+
+        session.close()
+
+        return jsonify({"success": True, "settings": result})
+
+    except Exception:
+        logger.exception("Error getting bulk settings")
+        return jsonify(
+            {"success": False, "error": "An internal error occurred"}
+        ), 500
