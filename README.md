@@ -90,10 +90,43 @@ docker run -d -p 5000:5000 --name local-deep-research --volume 'deep-research:/i
 
 ### Option 2: Docker Compose (Recommended)
 
+LDR uses Docker compose to bundle the web app and all it's dependencies so
+you can get up and running quickly.
+
+#### Option 2a: DIY docker-compose
+See [docker-compose.yml](./docker-compose.yml) for a docker-compose file with reasonable defaults to get up and running with ollama, searxng, and local deep research all running locally.
+
+Things you may want/need to configure:
+* Ollama GPU driver
+* Ollama context length (depends on available VRAM)
+* Ollama keep alive (duration model will stay loaded into VRAM and idle before getting unloaded automatically)
+* Deep Research model (depends on available VRAM and preference)
+
+#### Option 2b: Use Cookie Cutter to tailor a docker-compose to your needs:
+
+##### Prerequisites
+
+- [Docker](https://docs.docker.com/engine/install/)
+- [Docker Compose](https://docs.docker.com/compose/install/)
+- `cookiecutter`: Run `pip install --user cookiecutter`
+
+Clone the repository:
+
 ```bash
 git clone https://github.com/LearningCircuit/local-deep-research.git
 cd local-deep-research
-pip install --user cookiecutter
+```
+
+### Configuring with Docker Compose
+
+Cookiecutter will interactively guide you through the process of creating a
+`docker-compose` configuration that meets your specific needs. This is the
+recommended approach if you are not very familiar with Docker.
+
+In the LDR repository, run the following command
+to generate the compose file:
+
+```bash
 cookiecutter cookiecutter-docker/
 docker compose -f docker-compose.default.yml up
 ```
