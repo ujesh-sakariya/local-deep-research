@@ -47,9 +47,8 @@ from .advanced_search_system.strategies.smart_decomposition_strategy import (
 from .advanced_search_system.strategies.source_based_strategy import (
     SourceBasedSearchStrategy,
 )
-from .advanced_search_system.strategies.standard_strategy import (
-    StandardSearchStrategy,
-)
+
+# StandardSearchStrategy imported lazily to avoid database access during module import
 from .citation_handler import CitationHandler
 from .config.llm_config import get_llm
 from .config.search_config import get_search
@@ -150,7 +149,7 @@ class AdvancedSearchSystem:
                 search=self.search,
                 all_links_of_system=self.all_links_of_system,
             )
-        elif strategy_name.lower() == "source-based":
+        elif strategy_name.lower() in ["source-based", "source_based"]:
             logger.info("Creating SourceBasedSearchStrategy instance")
             self.strategy = SourceBasedSearchStrategy(
                 model=self.model,
@@ -465,15 +464,14 @@ class AdvancedSearchSystem:
             )
 
             logger.info("Creating FocusedIterationStrategy instance")
-            # PRESERVE SIMPLEQA PERFORMANCE: Keep proven 96.51% accuracy configuration
-            # Original optimal settings: max_iterations=8, questions_per_iteration=5
+            # Use database settings for iterations and questions_per_iteration
             self.strategy = FocusedIterationStrategy(
                 model=self.model,
                 search=self.search,
                 all_links_of_system=self.all_links_of_system,
-                max_iterations=8,  # PROVEN OPTIMAL FOR SIMPLEQA (96.51% accuracy)
-                questions_per_iteration=5,  # PROVEN OPTIMAL FOR SIMPLEQA
-                use_browsecomp_optimization=True,  # Enable BrowseComp optimizations
+                max_iterations=self.max_iterations,  # Use database setting
+                questions_per_iteration=self.questions_per_iteration,  # Use database setting
+                use_browsecomp_optimization=True,  # Enable BrowseComp optimizations for 95% accuracy
             )
         elif strategy_name.lower() in [
             "browsecomp-entity",
@@ -491,6 +489,11 @@ class AdvancedSearchSystem:
             )
         else:
             logger.info("Creating StandardSearchStrategy instance")
+            # Import lazily to avoid database access during module import
+            from .advanced_search_system.strategies.standard_strategy import (
+                StandardSearchStrategy,
+            )
+
             self.strategy = StandardSearchStrategy(
                 model=self.model,
                 search=self.search,
