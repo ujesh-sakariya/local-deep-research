@@ -27,6 +27,7 @@ This guide documents known issues that can affect benchmark results and how to a
 **Problem**: Too many requests trigger SearXNG's protective rate limiting.
 - **Symptoms**: Empty search results, "No results found" errors
 - **Solutions**:
+  - Monitor the search health indicator on the benchmark page
   - Reduce questions per iteration
   - Use your own SearXNG instance with appropriate limits
   - Check SearXNG health in Settings → Search Engines before benchmarking
@@ -92,7 +93,7 @@ This guide documents known issues that can affect benchmark results and how to a
 
 ### 3. Fair Comparisons
 - Test both strategies when possible
-- The benchmarking tool automatically selects questions for consistency
+- The benchmarking tool automatically selects questions from benchmarks (e.g. SimpleQA) for consistency
 - Include all relevant configuration details in your submission
 
 ### 4. Resource Monitoring
