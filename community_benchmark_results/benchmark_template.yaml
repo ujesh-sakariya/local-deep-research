@@ -7,6 +7,11 @@ model: # e.g., Llama-3.3-70B-Q4_K_M
 model_provider: # ollama, llamacpp, vllm, etc.
 quantization: # e.g., Q4_K_M, Q5_K_S, FP16, etc.
 
+# Search Engine (critical for benchmark reproducibility)
+search_engine: # e.g., searxng, tavily, duckduckgo, google
+search_provider_version: # if known, e.g., "latest", "2024.1.0"
+average_results_per_query: # optional, e.g., 10
+
 # Hardware
 hardware:
   gpu: # e.g., RTX 4090 24GB, 2x A100 80GB
@@ -48,8 +53,8 @@ versions:
 # Test Details
 test_details:
   date_tested: # YYYY-MM-DD
-  search_engine: # e.g., searxng, tavily
   rate_limiting_issues: # yes/no
+  search_failures: # number of failed searches, if any
 
 # Notes
 notes: |

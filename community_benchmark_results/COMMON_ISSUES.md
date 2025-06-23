@@ -29,6 +29,7 @@ This guide documents known issues that can affect benchmark results and how to a
 - **Solutions**:
   - Reduce questions per iteration
   - Use your own SearXNG instance with appropriate limits
+  - Check SearXNG health in Settings → Search Engines before benchmarking
   - Consider alternative search engines for high-volume testing
 
 ### 2. Search Provider Limitations
@@ -91,8 +92,8 @@ This guide documents known issues that can affect benchmark results and how to a
 
 ### 3. Fair Comparisons
 - Test both strategies when possible
-- Use the same question set across models
-- Include all relevant configuration details
+- The benchmarking tool automatically selects questions for consistency
+- Include all relevant configuration details in your submission
 
 ### 4. Resource Monitoring
 ```bash

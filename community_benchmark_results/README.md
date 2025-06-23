@@ -4,11 +4,19 @@ This directory contains community-contributed benchmark results for various LLMs
 
 ## Contributing Your Results
 
+### Easy Method (v0.6.0+)
+1. Run benchmarks using the LDR web interface at `/benchmark`
+2. Go to Benchmark Results page
+3. Click the green "YAML" button next to your completed benchmark
+4. Review the downloaded file and add any missing info (hardware specs are optional)
+5. Submit a PR to add your file to this directory
+
+### Manual Method
 1. Run benchmarks using the LDR web interface at `/benchmark`
 2. Copy `benchmark_template.yaml` to a new file named: `[model_name]_[date].yaml`
    - Example: `llama3.3-70b-q4_2025-01-23.yaml`
    - Optional: Include your username: `johnsmith_llama3.3-70b-q4_2025-01-23.yaml`
-3. Fill in your results
+3. Fill in your results manually
 4. Submit a PR to add your file to this directory
 
 ## Important Guidelines
