@@ -36,6 +36,14 @@ It aims to help researchers, students, and professionals find accurate informati
 - **Transparent**: Track costs and performance with built-in analytics
 - **Open Source**: MIT licensed with an active community
 
+## 📊 Performance
+
+**~95% accuracy on SimpleQA benchmark** (preliminary results)
+- Tested with GPT-4.1-mini + SearXNG + focused-iteration strategy
+- Comparable to state-of-the-art AI research systems
+- Local models can achieve similar performance with proper configuration
+- [Join our community benchmarking effort →](https://github.com/LearningCircuit/local-deep-research/tree/main/community_benchmark_results)
+
 ## ✨ Key Features
 
 ### 🔍 Research Modes
