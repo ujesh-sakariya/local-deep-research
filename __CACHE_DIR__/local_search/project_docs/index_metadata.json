@@ -1,0 +1,23 @@
+{
+  "a6dd6ed8de99b6bbb5e82296ddace438": {
+    "path": "/Users/ujeshsakariya/Library/CloudStorage/OneDrive-Personal/VSCODE/local-deep-research/local_collections",
+    "last_indexed": 1753367828.6796858,
+    "file_count": 0,
+    "chunk_count": 0,
+    "embedding_model": "llama3",
+    "chunk_size": 1000.0,
+    "chunk_overlap": 200.0,
+    "indexed_files": {
+      "UjeshSakariyaCV copy.pdf": [
+        "a4b3e8642b4e4a5392f95bcda5e20775",
+        "3336adc8ed7145a482c4dbd4f8d3603a",
+        "1126dd34b6c345f1b65a12dad96f6958",
+        "ab6a3da7d3fc4b97886bdff07c7e234d",
+        "122fd485d1bb4322832c5fb08f0f92d7",
+        "7b8fc89a9e6a4f3d9779a2c355030132",
+        "b3fb213f96c345dda8b1379558482baf",
+        "897376b7852240d5b3ba3df7c75228c0"
+      ]
+    }
+  }
+}
