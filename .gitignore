@@ -18,6 +18,7 @@
 !*.cfg
 !*.ipynb
 !*.template
+!*.txt
 
 # Allow specific project files
 !LICENSE
