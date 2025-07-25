@@ -37,7 +37,7 @@ def run_question_answering(question: str):
     retriever = vectorStore.as_retriever()
 
     # --- Step 4: Local Document QA Tool ---
-    llm = OllamaLLM(model="llama3")
+    llm = OllamaLLM(model="gemma3:12b")
     qa_chain = RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
     local_doc_tool = Tool(
@@ -70,9 +70,19 @@ def run_question_answering(question: str):
     )
 
     # --- Step 7: Run agent on question ---
-    response = agent.run(question)
-    final_summary = quick_summary(response)
-
+    response = agent.invoke(question)
+    print('response:   ',response)
+    final_summary = quick_summary(
+        query=f"""The following is a summary based on local documents for the question: "{response['input']}".
+    The current answer is: "{response['output']}".
+    Please enrich and expand this answer by incorporating relevant information from web sources.""",
+        search_tool="searxng",
+        search_strategy="focused-iteration",
+        iterations=2
+    )
     return response, final_summary
 
 answer, summary = run_question_answering("What is the most impressive project of this candidates CV?")
+print('answer:', answer)
+print('summary:', summary)
+
