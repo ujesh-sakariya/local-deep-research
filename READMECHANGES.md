@@ -19,42 +19,31 @@ local_collections/
 
 ---
 
-### 2. Set Your Environment Variables
-
-Export your **Tavily API key**:
-
-```bash
-export TAVILY_API_KEY=your_api_key_here
-```
-
-Or, place it in a `.env` file:
-
-```
-TAVILY_API_KEY=your_api_key_here
-```
-
----
-
-### 3. Download Ollama Model
-
-Ensure you have **Ollama** installed and the model used in the code (default: `llama3`) is downloaded:
-
-```bash
-ollama run llama3
-```
-
----
-
-### 4. Install Requirements
+### 2. Install Requirements
 
 Create and activate your virtual environment, then install dependencies:
 
-```bash
+```
 python -m venv venv
 source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 ```
 
+### 3. Set Your Environment Variables
+
+Export your **Tavily API key**:
+
+```
+export TAVILY_API_KEY=your_api_key_here
+```
+---
+### 4. Download Ollama Model
+
+Ensure you have **Ollama** installed and the model used in the code (default: `llama3`) is downloaded:
+
+```
+ollama run llama3
+```
 ---
 
 ### 5. Run the Model
